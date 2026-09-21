@@ -31,6 +31,7 @@ export function Orders({ customers, products, assemblies, methods, terms, orders
   const [termId, setTermId] = useState("");
   const [paymentStatus, setPaymentStatus] = useState(pdv ? "PAID" : "PENDING");
   const [editingOrder, setEditingOrder] = useState<any>(null);
+  const [saving, setSaving] = useState(false);
 
   function clearOrderForm() {
     setItems([]);
@@ -61,6 +62,7 @@ export function Orders({ customers, products, assemblies, methods, terms, orders
 
   async function addOrder(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (saving) return;
     const form = e.currentTarget;
     const body = {
       customer_id: customerId,
@@ -72,6 +74,7 @@ export function Orders({ customers, products, assemblies, methods, terms, orders
       address: pdv ? { alias: "" } : (customers.find((c) => c.id === customerId)?.addresses || []).find((a: any) => a.id === addressId) || { alias: "" },
       items,
     };
+    setSaving(true);
     try {
       if (editingOrder) await salesApi.updateOrder(editingOrder.id, body);
       else await salesApi.createOrder(body);
@@ -80,6 +83,8 @@ export function Orders({ customers, products, assemblies, methods, terms, orders
       await onReload();
     } catch (err: any) {
       onError(err.message);
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -261,7 +266,7 @@ export function Orders({ customers, products, assemblies, methods, terms, orders
             />
             <KitSubstitutions items={items} onChange={setItems} assemblies={assemblies} products={products} />
             <div className="row" style={{ marginTop: 12 }}>
-              <button disabled={items.length === 0 || (!pdv && !addressId) || !methodId || !termId}>{editingOrder ? "Salvar" : pdv ? "Criar venda" : "Criar pedido"}</button>
+              <button disabled={saving || items.length === 0 || (!pdv && !addressId) || !methodId || !termId}>{saving ? <><span className="btn-spinner" />Salvando...</> : editingOrder ? "Salvar" : pdv ? "Criar venda" : "Criar pedido"}</button>
               {editingOrder && <button type="button" className="secondary" onClick={clearOrderForm}>Cancelar edição</button>}
             </div>
           </form>

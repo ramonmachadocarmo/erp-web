@@ -1,6 +1,7 @@
 import { FormEvent, useState } from "react";
 import { Autocomplete } from "./Autocomplete";
 import { configApi } from "./api";
+import { CepAddress, CepPicker, searchCepByAddress } from "./CepPicker";
 
 const kinds = [
   { value: "PF", code: "PF", description: "Pessoa física" },
@@ -44,6 +45,7 @@ export function PersonForm({ editing, onCancel, onSave, submitLabel }: Props) {
   const [editIndex, setEditIndex] = useState<number | null>(null);
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
+  const [cepResults, setCepResults] = useState<CepAddress[] | null>(null);
 
   function patch(partial: Partial<Address>) {
     setDraft((d) => ({ ...d, ...partial }));
@@ -62,6 +64,32 @@ export function PersonForm({ editing, onCancel, onSave, submitLabel }: Props) {
         city: a.city || draft.city,
         state: a.state || draft.state,
       });
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy("");
+    }
+  }
+
+  function applyCep(a: CepAddress) {
+    patch({
+      zip: a.zip || draft.zip,
+      street: a.street || draft.street,
+      district: a.district || draft.district,
+      city: a.city || draft.city,
+      state: a.state || draft.state,
+    });
+    setCepResults(null);
+  }
+
+  // Inverso de searchCep: descobre o CEP a partir de logradouro + cidade + UF (bairro refina).
+  async function findCep() {
+    setError("");
+    setBusy("findcep");
+    try {
+      const list = await searchCepByAddress(draft);
+      if (list.length === 1) applyCep(list[0]);
+      else setCepResults(list);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -184,7 +212,7 @@ export function PersonForm({ editing, onCancel, onSave, submitLabel }: Props) {
       <div className="row" style={{ marginTop: 8 }}>
         <div className="field"><label>Alias</label><input value={draft.alias} onChange={(e) => patch({ alias: e.target.value })} placeholder="Casa" /></div>
         <div className="field"><label>CEP</label><input value={draft.zip} onChange={(e) => patch({ zip: e.target.value })} /></div>
-        <button type="button" className="secondary" disabled={busy !== ""} onClick={searchCep}>{busy === "cep" ? "Buscando..." : "Buscar CEP"}</button>
+        <button type="button" className="secondary" disabled={busy !== ""} onClick={searchCep}>{busy === "cep" ? "Buscando..." : "Buscar endereço"}</button>
         <button type="button" className="secondary" disabled={busy !== ""} onClick={fromLocation}>{busy === "geo" ? "Localizando..." : "Usar localização"}</button>
       </div>
       <div className="row" style={{ marginTop: 12 }}>
@@ -196,6 +224,7 @@ export function PersonForm({ editing, onCancel, onSave, submitLabel }: Props) {
       <div className="row" style={{ marginTop: 12 }}>
         <div className="field"><label>Cidade</label><input value={draft.city} onChange={(e) => patch({ city: e.target.value })} /></div>
         <div className="field field-narrow"><label>UF</label><input maxLength={2} value={draft.state} onChange={(e) => patch({ state: e.target.value })} /></div>
+        <button type="button" className="secondary" disabled={busy !== ""} onClick={findCep}>{busy === "findcep" ? "Buscando..." : "Buscar CEP"}</button>
         <button type="button" className="secondary" onClick={addAddress}>{editIndex === null ? "Incluir endereço" : "Atualizar endereço"}</button>
         {editIndex !== null && <button type="button" className="secondary" onClick={() => { setDraft(emptyAddress()); setEditIndex(null); }}>Cancelar</button>}
       </div>
@@ -225,6 +254,7 @@ export function PersonForm({ editing, onCancel, onSave, submitLabel }: Props) {
         <button>{submitLabel || (editing ? "Salvar" : "Adicionar")}</button>
         {onCancel && <button type="button" className="secondary" onClick={onCancel}>Cancelar</button>}
       </div>
+      {cepResults && <CepPicker results={cepResults} onPick={applyCep} onClose={() => setCepResults(null)} />}
     </form>
   );
 }

@@ -150,6 +150,14 @@ h2 { margin: 0 0 12px; font-size: 16px; }
   animation: spin 0.7s linear infinite;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
+/* Spinner dentro de botão (o .loading-spinner padrão some no fundo azul do botão primário). */
+.btn-spinner {
+  display: inline-block; width: 14px; height: 14px; margin-right: 8px; vertical-align: -2px;
+  border: 2px solid rgba(255, 255, 255, 0.35); border-top-color: #fff;
+  border-radius: 50%; animation: spin 0.7s linear infinite;
+}
+.cep-list { display: grid; gap: 8px; margin-top: 12px; max-height: 50vh; overflow-y: auto; }
+.cep-item { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; white-space: normal; width: 100%; }
 .line-items { width: 100%; margin-top: 8px; }
 .line-items .table-wrap { margin-top: 12px; }
 .line-items table input { min-width: 72px; }

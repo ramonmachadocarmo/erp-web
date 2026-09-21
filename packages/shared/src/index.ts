@@ -5,6 +5,7 @@ export { CodeInput } from "./CodeInput";
 export { LineItems } from "./LineItems";
 export type { LineItem, LineItemComponent } from "./LineItems";
 export { Modal } from "./Modal";
+export { CepPicker, searchCepByAddress } from "./CepPicker";
 export { CadastroLayout } from "./CadastroLayout";
 export { CategoryForm } from "./CategoryForm";
 export { ProductForm } from "./ProductForm";

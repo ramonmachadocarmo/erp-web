@@ -26,6 +26,16 @@ function itemSummary(items: any[], products: any[]) {
     .join(", ");
 }
 
+// Status de entrega do pedido, como aparecem na tela. Os valores técnicos (APPROVED, RECEIVED,
+// CONFERRED, CANCELLED) são mantidos porque outros serviços (BI) filtram por eles.
+const DELIVERY_LABEL: Record<string, string> = {
+  APPROVED: "Pendente entrega",
+  RECEIVED: "Recebido",
+  CONFERRED: "Finalizado",
+  CANCELLED: "Cancelado",
+};
+const PAYMENT_LABEL: Record<string, string> = { PENDING: "Pendente pagamento", PAID: "Pago" };
+
 function itemVolumes(items: any[]) {
   return (items || []).reduce((sum, it) => sum + Number(it.quantity || 0), 0);
 }
@@ -82,6 +92,7 @@ export default function App() {
   const [personModal, setPersonModal] = useState(false);
   const [editingQuote, setEditingQuote] = useState<Quote | null>(null);
   const [editingOrder, setEditingOrder] = useState<any>(null);
+  const [saving, setSaving] = useState(false);
   const [converting, setConverting] = useState<any>(null);
   const [convertError, setConvertError] = useState("");
   const [warehouses, setWarehouses] = useState<any[]>([]);
@@ -174,6 +185,7 @@ export default function App() {
 
   async function saveQuote(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (saving) return;
     const form = e.currentTarget;
     const f = new FormData(form);
     const body: Quote = {
@@ -183,6 +195,7 @@ export default function App() {
       delivery_amount: Number(quoteDelivery || 0),
       items: quoteItems,
     };
+    setSaving(true);
     try {
       if (editingQuote) await purchasingApi.updateQuote(editingQuote.id!, body);
       else await purchasingApi.createQuote(body);
@@ -191,6 +204,8 @@ export default function App() {
       await load();
     } catch (err: any) {
       setError(err.message);
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -220,6 +235,7 @@ export default function App() {
 
   async function saveOrder(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (saving) return;
     const form = e.currentTarget;
     const f = new FormData(form);
     const body = {
@@ -228,6 +244,7 @@ export default function App() {
       payment_term_id: f.get("payment_term_id"),
       items: orderItems,
     };
+    setSaving(true);
     try {
       if (editingOrder) await purchasingApi.updateOrder(editingOrder.id, body);
       else await purchasingApi.createOrder(body);
@@ -237,6 +254,8 @@ export default function App() {
       await load();
     } catch (err: any) {
       setError(err.message);
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -256,6 +275,23 @@ export default function App() {
     } catch (err: any) {
       setError(err.message);
     }
+  }
+
+    async function changeOrderStatus(o: any, apply: () => Promise<unknown>) {
+    setError("");
+    try {
+      await apply();
+      await load();
+    } catch (err: any) {
+      setError(err.message);
+      await load();
+    }
+  }
+
+  async function cancelOrder(o: any) {
+    if (!window.confirm(`Cancelar o pedido de ${personName(suppliers, o.supplier_id)}? A programação de caixa será removida.`)) return;
+    if (editingOrder?.id === o.id) clearOrderForm();
+    await changeOrderStatus(o, () => purchasingApi.cancelOrder(o.id));
   }
 
   async function confirmConvert() {
@@ -514,7 +550,45 @@ export default function App() {
         </span>
       ),
     },
-    { key: "status", label: "Status", value: (o) => o.status, render: (o) => <span className="badge">{o.status}</span> },
+    {
+      key: "status",
+      label: "Entrega",
+      value: (o) => DELIVERY_LABEL[o.status] || o.status,
+      render: (o) => {
+        // Manual: pendente entrega <-> finalizado (o fluxo de NF — Entrada e Conferência — também
+        // move este status). Reabrir é bloqueado pelo backend depois que o estoque recebeu.
+        if (o.status === "CANCELLED") return <span className="badge">{DELIVERY_LABEL.CANCELLED}</span>;
+        return (
+          <select
+            value={o.status}
+            style={{ minWidth: 150 }}
+            onChange={(e) => changeOrderStatus(o, () => purchasingApi.setOrderDeliveryStatus(o.id, e.target.value as "APPROVED" | "CONFERRED"))}
+          >
+            <option value="APPROVED">{DELIVERY_LABEL.APPROVED}</option>
+            {o.status === "RECEIVED" && <option value="RECEIVED" disabled>{DELIVERY_LABEL.RECEIVED} (conferir)</option>}
+            <option value="CONFERRED">{DELIVERY_LABEL.CONFERRED}</option>
+          </select>
+        );
+      },
+    },
+    {
+      key: "payment_status",
+      label: "Financeiro",
+      value: (o) => (o.status === "CANCELLED" ? "—" : PAYMENT_LABEL[o.payment_status] || o.payment_status),
+      render: (o) =>
+        o.status === "CANCELLED" ? (
+          <span className="muted">—</span>
+        ) : (
+          <select
+            value={o.payment_status || "PENDING"}
+            style={{ minWidth: 150 }}
+            onChange={(e) => changeOrderStatus(o, () => purchasingApi.setOrderPaymentStatus(o.id, e.target.value as "PENDING" | "PAID"))}
+          >
+            <option value="PENDING">{PAYMENT_LABEL.PENDING}</option>
+            <option value="PAID">{PAYMENT_LABEL.PAID}</option>
+          </select>
+        ),
+    },
     { key: "items", label: "Itens", value: (o) => itemSummary(o.items, products), render: (o) => <span className="muted">{itemSummary(o.items, products)}</span> },
     { key: "total_amount", label: "Total", value: (o) => Number(o.total_amount || 0), render: (o) => brl(o.total_amount) },
     {
@@ -522,14 +596,20 @@ export default function App() {
       label: "",
       sortable: false,
       filterable: false,
-      render: (o) =>
-        // Só pedidos ainda não recebidos e sem nota de entrada podem ser alterados.
-        o.status === "APPROVED" && !invoiceOf(o.id) ? (
+      render: (o) => {
+        // Editar/excluir: só pendente entrega, não pago e sem nota de entrada. Cancelar: qualquer
+        // pedido ainda não recebido.
+        const editable = o.status === "APPROVED" && o.payment_status !== "PAID" && !invoiceOf(o.id);
+        const cancellable = o.status === "APPROVED";
+        if (!editable && !cancellable) return null;
+        return (
           <div className="row" style={{ flexWrap: "nowrap" }}>
-            <button type="button" className="secondary" onClick={() => startEditOrder(o)}>Editar</button>
-            <button type="button" className="secondary" onClick={() => removeOrder(o)}>Excluir</button>
+            {editable && <button type="button" className="secondary" onClick={() => startEditOrder(o)}>Editar</button>}
+            {editable && <button type="button" className="secondary" onClick={() => removeOrder(o)}>Excluir</button>}
+            {cancellable && <button type="button" className="secondary" onClick={() => cancelOrder(o)}>Cancelar</button>}
           </div>
-        ) : null,
+        );
+      },
     },
   ];
 
@@ -640,7 +720,7 @@ export default function App() {
               Subtotal: {brl(quoteSubtotal)} · Desconto: -{brl(Number(quoteDiscount || 0))} · Frete: +{brl(Number(quoteDelivery || 0))} · Total: {brl(quoteTotal)}
             </p>
             <div className="row" style={{ marginTop: 12 }}>
-              <button disabled={quoteItems.length === 0}>Salvar orçamento</button>
+              <button disabled={saving || quoteItems.length === 0}>{saving ? <><span className="btn-spinner" />Salvando...</> : "Salvar orçamento"}</button>
               {editingQuote && <button type="button" className="secondary" onClick={() => { clearQuoteForm(); setFormOpen(false); }}>Cancelar</button>}
             </div>
           </form>
@@ -710,7 +790,7 @@ export default function App() {
               </div>
               <LineItems products={products} priceKey="purchase_price" items={orderItems} onChange={setOrderItems} onCreateProduct={() => setProductModal(true)} />
               <div className="row" style={{ marginTop: 12 }}>
-                <button disabled={orderItems.length === 0}>{editingOrder ? "Salvar pedido" : "Criar pedido"}</button>
+                <button disabled={saving || orderItems.length === 0}>{saving ? <><span className="btn-spinner" />Salvando...</> : editingOrder ? "Salvar pedido" : "Criar pedido"}</button>
                 {editingOrder && <button type="button" className="secondary" onClick={() => { clearOrderForm(); setFormOpen(false); }}>Cancelar</button>}
               </div>
             </form>
@@ -741,7 +821,7 @@ export default function App() {
           {conferring && (
             <>
               <div className="row">
-                <p>{personName(suppliers, conferring.supplier_id)} · <span className="badge">{conferring.status}</span></p>
+                <p>{personName(suppliers, conferring.supplier_id)} · <span className="badge">{DELIVERY_LABEL[conferring.status] || conferring.status}</span></p>
                 <button type="button" className="secondary" onClick={() => setConferring(null)}>Voltar</button>
               </div>
               <div className="row" style={{ marginTop: 12 }}>

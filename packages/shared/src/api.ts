@@ -174,6 +174,8 @@ export const configApi = {
   updateSupplier: (id: string, body: unknown) => request<any>("/api/config", `/suppliers/${id}`, { method: "PUT", body: JSON.stringify(body) }),
   deleteSupplier: (id: string) => request<void>("/api/config", `/suppliers/${id}`, { method: "DELETE" }),
   lookupCep: (cep: string) => request<any>("/api/config", `/cep/${cep.replace(/\D/g, "")}`),
+  searchCep: (p: { state: string; city: string; street: string; district?: string }) =>
+    request<any[]>("/api/config", `/cep?${new URLSearchParams({ state: p.state, city: p.city, street: p.street, district: p.district ?? "" })}`),
   lookupGeo: (lat: number, lng: number) => request<any>("/api/config", `/geo?lat=${lat}&lng=${lng}`),
   searchGeo: (q: string) => request<any>("/api/config", `/geo?q=${encodeURIComponent(q)}`),
   centers: () => request<any[]>("/api/config", "/centers"),
@@ -279,6 +281,11 @@ export const purchasingApi = {
   updateOrder: (id: string, body: unknown) =>
     request<any>("/api/purchasing", `/purchase-orders/${id}`, { method: "PUT", body: JSON.stringify(body) }),
   deleteOrder: (id: string) => request<void>("/api/purchasing", `/purchase-orders/${id}`, { method: "DELETE" }),
+  cancelOrder: (id: string) => request<void>("/api/purchasing", `/purchase-orders/${id}/cancel`, { method: "POST" }),
+  setOrderPaymentStatus: (id: string, status: "PENDING" | "PAID") =>
+    request<void>("/api/purchasing", `/purchase-orders/${id}/payment-status`, { method: "PUT", body: JSON.stringify({ status }) }),
+  setOrderDeliveryStatus: (id: string, status: "APPROVED" | "CONFERRED") =>
+    request<void>("/api/purchasing", `/purchase-orders/${id}/delivery-status`, { method: "PUT", body: JSON.stringify({ status }) }),
   receive: (id: string, body?: unknown) =>
     request<void>("/api/purchasing", `/purchase-orders/${id}/receive`, { method: "POST", body: JSON.stringify(body || {}) }),
   confer: (id: string) =>

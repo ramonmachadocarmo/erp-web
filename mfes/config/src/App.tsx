@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
-import { Autocomplete, AuditLogEntry, CadastroLayout, CodeInput, DataTable, DataTableColumn, Loading, MapPicker, MENU, MenuGroup, MODULES, MODULE_LABELS, PersonForm, Role, WarehouseCreateModal, auditApi, configApi, identityApi, readLogoFile, rolesApi, stockApi, getToken, getUser, setSession, usePermission } from "@erp/shared";
+import { Autocomplete, AuditLogEntry, CadastroLayout, CepPicker, CodeInput, DataTable, DataTableColumn, Loading, MapPicker, MENU, MenuGroup, MODULES, MODULE_LABELS, PersonForm, Role, WarehouseCreateModal, auditApi, configApi, identityApi, readLogoFile, rolesApi, searchCepByAddress, stockApi, getToken, getUser, setSession, usePermission } from "@erp/shared";
 
 function flattenLeaves(section: MenuGroup): { to: string; label: string }[] {
   return [...(section.items ?? []), ...(section.groups ?? []).flatMap(flattenLeaves)];
@@ -66,6 +66,7 @@ export default function App() {
   const [installments, setInstallments] = useState<{ days: number; percent: number }[]>([{ days: 0, percent: 100 }]);
   const [companyDraft, setCompanyDraft] = useState<any>(null);
   const [companyBusy, setCompanyBusy] = useState("");
+  const [cepResults, setCepResults] = useState<{ target: "center" | "company"; list: any[] } | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
@@ -345,6 +346,36 @@ export default function App() {
       setError(err.message);
     } finally {
       setCenterBusy("");
+    }
+  }
+
+  // Inverso de "Buscar endereço": descobre o CEP a partir de logradouro + cidade + UF (bairro refina).
+  function applyFoundCep(target: "center" | "company", a: any) {
+    const set = target === "center" ? setCenterDraft : setCompanyDraft;
+    set((d: any) => ({
+      ...d,
+      zip: a.zip || d.zip,
+      street: a.street || d.street,
+      district: a.district || d.district,
+      city: a.city || d.city,
+      state: a.state || d.state,
+    }));
+    setCepResults(null);
+  }
+
+  async function findCep(target: "center" | "company") {
+    const draft = target === "center" ? centerDraft : companyDraft;
+    const setBusy = target === "center" ? setCenterBusy : setCompanyBusy;
+    setError("");
+    setBusy("findcep");
+    try {
+      const list = await searchCepByAddress(draft);
+      if (list.length === 1) applyFoundCep(target, list[0]);
+      else setCepResults({ target, list });
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setBusy("");
     }
   }
 
@@ -832,7 +863,8 @@ export default function App() {
                   setCenterDraft((d: any) => ({ ...d, zip }));
                   if (zip.replace(/\D/g, "").length === 8) searchCenterCep(zip);
                 }} /></div>
-                <button type="button" className="secondary" disabled={centerBusy !== ""} onClick={() => searchCenterCep()}>{centerBusy === "cep" ? "Buscando..." : "Buscar CEP"}</button>
+                <button type="button" className="secondary" disabled={centerBusy !== ""} onClick={() => searchCenterCep()}>{centerBusy === "cep" ? "Buscando..." : "Buscar endereço"}</button>
+                <button type="button" className="secondary" disabled={centerBusy !== ""} onClick={() => findCep("center")}>{centerBusy === "findcep" ? "Buscando..." : "Buscar CEP"}</button>
                 <div className="field"><label>Logradouro</label><input name="street" value={centerDraft.street ?? ""} onChange={(e) => setCenterDraft((d: any) => ({ ...d, street: e.target.value }))} /></div>
                 <div className="field"><label>Número</label><input name="number" value={centerDraft.number ?? ""} onChange={(e) => setCenterDraft((d: any) => ({ ...d, number: e.target.value }))} /></div>
               </div>
@@ -1046,7 +1078,8 @@ export default function App() {
                 setCompanyDraft((d: any) => ({ ...d, zip }));
                 if (zip.replace(/\D/g, "").length === 8) searchCompanyCep(zip);
               }} /></div>
-              <button type="button" className="secondary" disabled={companyBusy === "cep"} onClick={() => searchCompanyCep()}>{companyBusy === "cep" ? "Buscando..." : "Buscar CEP"}</button>
+              <button type="button" className="secondary" disabled={companyBusy !== ""} onClick={() => searchCompanyCep()}>{companyBusy === "cep" ? "Buscando..." : "Buscar endereço"}</button>
+              <button type="button" className="secondary" disabled={companyBusy !== ""} onClick={() => findCep("company")}>{companyBusy === "findcep" ? "Buscando..." : "Buscar CEP"}</button>
               <div className="field"><label>Logradouro</label><input name="street" value={companyDraft.street ?? ""} onChange={(e) => setCompanyDraft((d: any) => ({ ...d, street: e.target.value }))} /></div>
               <div className="field"><label>Número</label><input name="number" value={companyDraft.number ?? ""} onChange={(e) => setCompanyDraft((d: any) => ({ ...d, number: e.target.value }))} /></div>
             </div>
@@ -1156,6 +1189,7 @@ export default function App() {
       )}
         </>
       )}
+      {cepResults && <CepPicker results={cepResults.list} onPick={(a) => applyFoundCep(cepResults.target, a)} onClose={() => setCepResults(null)} />}
     </div>
   );
 }
