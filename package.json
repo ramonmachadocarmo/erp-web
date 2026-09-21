@@ -1,0 +1,24 @@
+{
+  "name": "erp-web",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "shell",
+    "mfes/*"
+  ],
+  "scripts": {
+    "dev:shell": "npm run dev -w shell",
+    "dev:config": "npm run dev -w @erp/config",
+    "dev:auth": "npm run dev -w @erp/auth",
+    "dev:stock": "npm run dev -w @erp/stock",
+    "dev:sales": "npm run dev -w @erp/sales",
+    "dev:purchasing": "npm run dev -w @erp/purchasing",
+    "dev:assets": "npm run dev -w @erp/assets",
+    "dev:cashflow": "npm run dev -w @erp/cashflow",
+    "dev:invoicing": "npm run dev -w @erp/invoicing",
+    "dev:bi": "npm run dev -w @erp/bi",
+    "dev:reports": "npm run dev -w @erp/reports",
+    "test": "npm test --workspaces --if-present",
+    "build": "npm run build -w @erp/auth && npm run build -w @erp/config && npm run build -w @erp/stock && npm run build -w @erp/sales && npm run build -w @erp/purchasing && npm run build -w @erp/assets && npm run build -w @erp/cashflow && npm run build -w @erp/invoicing && npm run build -w @erp/bi && npm run build -w @erp/reports && npm run build -w shell"
+  }
+}
