@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Autocomplete, DataTable, DataTableColumn, Loading, MapRoute, StatusBadge, configApi, salesApi } from "@erp/shared";
-import { addrLabel, km, mins, personName } from "./helpers";
+import { addrLabel, fmtDate, km, mins, personName } from "./helpers";
 
 export function RoutesPlanner({ customers }: { customers: any[] }) {
   const navigate = useNavigate();
@@ -17,7 +17,10 @@ export function RoutesPlanner({ customers }: { customers: any[] }) {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [choice, setChoice] = useState(0);
+    const [choice, setChoice] = useState(0);
+  // "" = todas as datas, "none" = pedidos sem data, senão YYYY-MM-DD
+  const [dateFilter, setDateFilter] = useState("");
+
 
   async function load() {
     try {
@@ -85,7 +88,10 @@ export function RoutesPlanner({ customers }: { customers: any[] }) {
     }
   }
 
-  const open = candidates;
+    // Rotas são montadas por data de entrega (o backend nunca mistura datas numa rota); o filtro só
+  // facilita escolher o dia. Trocar o filtro limpa a seleção para não enviar pedidos escondidos.
+  const dates = Array.from(new Set(candidates.map((c) => c.delivery_date || ""))).sort((a, b) => (a === "" ? 1 : b === "" ? -1 : a.localeCompare(b)));
+  const open = candidates.filter((c) => !dateFilter || (dateFilter === "none" ? !c.delivery_date : c.delivery_date === dateFilter));
   const shown = result?.plans?.length ? result.plans : active ? [active] : [];
   const cd = centers.find((c) => c.id === (shown[0]?.center_id || centerId));
   const opt = active?.options?.[choice];
@@ -118,6 +124,7 @@ export function RoutesPlanner({ customers }: { customers: any[] }) {
       ),
     },
     { key: "seq", label: "#", value: (c) => stopByOrder[c.id]?.seq ?? null, render: (c) => stopByOrder[c.id]?.seq ?? "—" },
+        { key: "delivery_date", label: "Entrega", value: (c) => c.delivery_date || "", render: (c) => fmtDate(c.delivery_date) },
     { key: "customer", label: "Cliente", value: (c) => personName(customers, c.customer_id) },
     { key: "address", label: "Endereço", value: (c) => addrLabel(c.address), render: (c) => <span className="muted">{addrLabel(c.address)}</span> },
     { key: "weight_kg", label: "kg", value: (c) => Number(c.weight_kg || 0), render: (c) => Number(c.weight_kg || 0).toFixed(1) },
@@ -146,6 +153,7 @@ export function RoutesPlanner({ customers }: { customers: any[] }) {
   ];
 
   const planColumns: DataTableColumn<any>[] = [
+        { key: "delivery_date", label: "Entrega", value: (p) => p.delivery_date || "", render: (p) => fmtDate(p.delivery_date) },
     { key: "vehicle", label: "Veículo", value: (p) => `${p.vehicle_code || ""} ${p.vehicle_name || ""}`.trim() },
     { key: "status", label: "Status", value: (p) => p.status, render: (p) => <StatusBadge status={p.status} /> },
     { key: "stops", label: "Paradas", value: (p) => p.stops?.length || 0 },
@@ -201,6 +209,17 @@ export function RoutesPlanner({ customers }: { customers: any[] }) {
             />
           </div>
         </div>
+                <div className="row" style={{ marginTop: 12 }}>
+          <div className="field">
+            <label>Data de entrega</label>
+            <select value={dateFilter} onChange={(e) => { setDateFilter(e.target.value); setSelected({}); }}>
+              <option value="">Todas as datas</option>
+              {dates.map((d) => (
+                <option key={d || "none"} value={d || "none"}>{d ? fmtDate(d) : "Sem data"}</option>
+              ))}
+            </select>
+          </div>
+        </div>
         <p className="muted">Veículos</p>
         <div className="row">
           {vehicles.map((v) => (
@@ -214,7 +233,7 @@ export function RoutesPlanner({ customers }: { customers: any[] }) {
             </label>
           ))}
         </div>
-        <p className="muted">Marque N veículos para separar em N rotas. Desmarque entregas e monte de novo para otimizar.</p>
+        <p className="muted">As rotas são montadas por data de entrega: pedidos de datas diferentes nunca vão na mesma rota. Marque N veículos para separar em N rotas. Desmarque entregas e monte de novo para otimizar.</p>
         <div className="row" style={{ marginTop: 12 }}>
           <button type="button" className="secondary" disabled={open.length === 0} onClick={toggleAll}>
             {allSelected ? "Limpar seleção" : "Selecionar todos"}
@@ -229,7 +248,7 @@ export function RoutesPlanner({ customers }: { customers: any[] }) {
         <div className="row" style={{ marginTop: 12, alignItems: "stretch" }}>
           {shown.map((p: any) => (
             <div className="card" key={p.id} style={{ cursor: "pointer", outline: active?.id === p.id ? "2px solid var(--accent)" : undefined }} onClick={() => setActive(p)}>
-              <h2>{p.vehicle_code} {p.vehicle_name}</h2>
+              <h2>{p.vehicle_code} {p.vehicle_name}{p.delivery_date ? ` · ${fmtDate(p.delivery_date)}` : ""}</h2>
               <p className="muted">{p.stops?.length || 0} paradas · {km(p.distance_m)} · {mins(p.duration_s)}</p>
               <p>Ocupação {Number(p.occupancy_pct || 0).toFixed(0)}% · {Number(p.weight_kg || 0).toFixed(1)} kg · {Number(p.volume_m3 || 0).toFixed(3)} m³</p>
             </div>

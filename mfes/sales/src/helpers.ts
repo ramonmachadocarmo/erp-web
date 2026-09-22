@@ -25,6 +25,18 @@ export function orderNo(id: string) {
   return (id || "").slice(0, 8).toUpperCase();
 }
 
+/** "2026-09-25" -> "25/09/2026" (a data vem do backend só como dia, sem fuso). */
+export function fmtDate(d?: string) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(d || "");
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : "—";
+}
+
+/** Hoje no fuso local, em YYYY-MM-DD (valor de <input type="date">). */
+export function todayISO() {
+  const n = new Date();
+  return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}-${String(n.getDate()).padStart(2, "0")}`;
+}
+
 export function km(m: number) {
   return `${(Number(m || 0) / 1000).toFixed(1)} km`;
 }

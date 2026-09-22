@@ -2,7 +2,7 @@ import { FormEvent, useState } from "react";
 import { Autocomplete, CadastroLayout, DataTable, DataTableColumn, LineItem, LineItems, PersonCreateModal, ProductCreateModal, StatusBadge, salesApi } from "@erp/shared";
 import { AddressCreateModal } from "./AddressCreateModal";
 import { KitSubstitutions } from "./KitSubstitutions";
-import { addrLabel, freeMap, itemSummary, onHandMap, orderShort, personName, personOption, withOrderStock } from "./helpers";
+import { addrLabel, fmtDate, freeMap, itemSummary, onHandMap, orderShort, personName, personOption, todayISO, withOrderStock } from "./helpers";
 
 type Props = {
   customers: any[];
@@ -26,7 +26,9 @@ export function Orders({ customers, products, assemblies, methods, terms, orders
   const [addressModal, setAddressModal] = useState(false);
   const [items, setItems] = useState<LineItem[]>([]);
   const [customerId, setCustomerId] = useState("");
-  const [addressId, setAddressId] = useState("");
+    const [addressId, setAddressId] = useState("");
+  const [deliveryDate, setDeliveryDate] = useState("");
+
   const [methodId, setMethodId] = useState("");
   const [termId, setTermId] = useState("");
   const [paymentStatus, setPaymentStatus] = useState(pdv ? "PAID" : "PENDING");
@@ -36,7 +38,8 @@ export function Orders({ customers, products, assemblies, methods, terms, orders
   function clearOrderForm() {
     setItems([]);
     setCustomerId("");
-    setAddressId("");
+        setAddressId("");
+    setDeliveryDate("");
     setMethodId("");
     setTermId("");
     setPaymentStatus(pdv ? "PAID" : "PENDING");
@@ -46,7 +49,8 @@ export function Orders({ customers, products, assemblies, methods, terms, orders
   function startEdit(o: any) {
     setEditingOrder(o);
     setCustomerId(o.customer_id);
-    setAddressId(o.address?.id || "");
+        setAddressId(o.address?.id || "");
+    setDeliveryDate(o.delivery_date || "");
     setMethodId(o.payment_method_id || "");
     setTermId(o.payment_term_id || "");
     setPaymentStatus(o.payment_status || "PENDING");
@@ -69,7 +73,8 @@ export function Orders({ customers, products, assemblies, methods, terms, orders
       warehouse_id: "",
       payment_method_id: methodId,
       payment_term_id: termId,
-      payment_status: paymentStatus,
+            payment_status: paymentStatus,
+      delivery_date: pdv ? "" : deliveryDate,
       discount_amount: 0,
       address: pdv ? { alias: "" } : (customers.find((c) => c.id === customerId)?.addresses || []).find((a: any) => a.id === addressId) || { alias: "" },
       items,
@@ -141,6 +146,7 @@ export function Orders({ customers, products, assemblies, methods, terms, orders
         </>
       ),
     },
+        { key: "delivery_date", label: "Entrega", value: (o) => o.delivery_date || "", render: (o) => fmtDate(o.delivery_date) },
     {
       key: "payment_status",
       label: "Status pagamento",
@@ -251,7 +257,17 @@ export function Orders({ customers, products, assemblies, methods, terms, orders
                     }))}
                     createLabel="Cadastrar endereço"
                     onCreate={() => customerId && setAddressModal(true)}
-                    onChange={setAddressId}
+                                        onChange={setAddressId}
+                  />
+                </div>
+                <div className="field field-narrow">
+                  <label>Data de entrega</label>
+                  <input
+                    type="date"
+                    required
+                    value={deliveryDate}
+                    min={editingOrder ? undefined : todayISO()}
+                    onChange={(e) => setDeliveryDate(e.target.value)}
                   />
                 </div>
               </div>
@@ -266,7 +282,7 @@ export function Orders({ customers, products, assemblies, methods, terms, orders
             />
             <KitSubstitutions items={items} onChange={setItems} assemblies={assemblies} products={products} />
             <div className="row" style={{ marginTop: 12 }}>
-              <button disabled={saving || items.length === 0 || (!pdv && !addressId) || !methodId || !termId}>{saving ? <><span className="btn-spinner" />Salvando...</> : editingOrder ? "Salvar" : pdv ? "Criar venda" : "Criar pedido"}</button>
+              <button disabled={saving || items.length === 0 || (!pdv && (!addressId || !deliveryDate)) || !methodId || !termId}>{saving ? <><span className="btn-spinner" />Salvando...</> : editingOrder ? "Salvar" : pdv ? "Criar venda" : "Criar pedido"}</button>
               {editingOrder && <button type="button" className="secondary" onClick={clearOrderForm}>Cancelar edição</button>}
             </div>
           </form>

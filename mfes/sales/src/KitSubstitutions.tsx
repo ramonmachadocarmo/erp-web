@@ -1,4 +1,6 @@
+import { useState } from "react";
 import { Autocomplete, LineItem, LineItemComponent } from "@erp/shared";
+import { MAX_PREMIUM, equivalentQuantity, qtyStep, withinPremium } from "./kitSwap";
 
 type Product = { id: string; sku: string; name: string; sale_price?: number; sale_uom?: string };
 type AssemblyItem = { product_id: string; quantity: number; role?: string };
@@ -32,6 +34,7 @@ function effectiveComponents(it: LineItem, assembly: Assembly): LineItemComponen
 }
 
 export function KitSubstitutions({ items, onChange, assemblies, products }: Props) {
+  const [swapError, setSwapError] = useState("");
   const assemblyByProduct: Record<string, Assembly> = {};
   for (const a of assemblies) if (a.product_id) assemblyByProduct[a.product_id] = a;
 
@@ -47,18 +50,39 @@ export function KitSubstitutions({ items, onChange, assemblies, products }: Prop
     onChange(next);
   }
 
-  // Swapping the product recalculates quantity from the SAME base value the recipe originally
-  // called for (from.quantity * from's own sale price) — not the current row's possibly
-  // already-edited quantity — so repeated swaps on one row don't compound rounding drift.
+    // Value the recipe originally called for in this slot (recipe qty x kits x sale price) — the
+  // budget every swap is measured against, so repeated swaps on one row never compound drift.
+  function slotBase(index: number, compIndex: number) {
+    const assembly = assemblyByProduct[items[index].product_id];
+    const ai = assembly.items[compIndex];
+    return ai ? ai.quantity * items[index].quantity * salePriceOf(products, ai.product_id) : 0;
+  }
+
+  // Swap = remove the recipe item and add another of equivalent sale value: the new quantity
+  // keeps the value (rounded to the unit's step) and may cost at most MAX_PREMIUM more than the
+  // removed item — see kitSwap.ts. A refused swap leaves the row untouched and says why.
   function swapProduct(index: number, compIndex: number, newProductId: string) {
     const it = items[index];
     const assembly = assemblyByProduct[it.product_id];
     const comps = effectiveComponents(it, assembly).slice();
-    const from = comps[compIndex];
-    const targetValue = from.quantity * salePriceOf(products, from.product_id);
-    const toPrice = salePriceOf(products, newProductId);
-    const quantity = toPrice > 0 ? Number((targetValue / toPrice).toFixed(4)) : from.quantity;
-    comps[compIndex] = { product_id: newProductId, quantity };
+    if (comps[compIndex].product_id === newProductId) return;
+    const original = assembly.items[compIndex];
+    // Going back to the recipe's own product restores its recipe quantity.
+    if (original && original.product_id === newProductId) {
+      comps[compIndex] = { product_id: newProductId, quantity: Number((original.quantity * it.quantity).toFixed(4)) };
+      setSwapError("");
+      updateComponents(index, comps);
+      return;
+    }
+    const target = slotBase(index, compIndex);
+    const np = productOf(products, newProductId);
+    const eq = equivalentQuantity(target, salePriceOf(products, newProductId), qtyStep(np?.sale_uom));
+    if (!eq.ok) {
+      setSwapError(`${np ? `${np.sku} — ${np.name}` : "Item"}: ${eq.reason}`);
+      return;
+    }
+    setSwapError("");
+    comps[compIndex] = { product_id: newProductId, quantity: eq.quantity };
     updateComponents(index, comps);
   }
 
@@ -66,11 +90,18 @@ export function KitSubstitutions({ items, onChange, assemblies, products }: Prop
     const it = items[index];
     const assembly = assemblyByProduct[it.product_id];
     const comps = effectiveComponents(it, assembly).slice();
+    const price = salePriceOf(products, comps[compIndex].product_id);
+    if (!withinPremium(quantity, price, slotBase(index, compIndex))) {
+      setSwapError(`Quantidade acima do permitido: o item pode custar no máximo ${Math.round(MAX_PREMIUM * 100)}% a mais que o item original da cesta.`);
+      return;
+    }
+    setSwapError("");
     comps[compIndex] = { ...comps[compIndex], quantity };
     updateComponents(index, comps);
   }
 
-  function resetToDefault(index: number) {
+    function resetToDefault(index: number) {
+    setSwapError("");
     updateComponents(index, []);
   }
 
@@ -78,9 +109,11 @@ export function KitSubstitutions({ items, onChange, assemblies, products }: Prop
     <div className="card" style={{ marginTop: 12 }}>
       <h2>Itens das cestas</h2>
       <p className="muted">
-        Troque um item da receita por outro sem alterar o preço da cesta — a quantidade do substituto é calculada
-        pelo valor equivalente de venda (ex.: 1kg de maçã ≈ o mesmo valor em uva).
+                Troque um item da receita por outro sem alterar o preço da cesta — a quantidade do substituto é calculada
+        pelo valor equivalente de venda (ex.: R$ 12 de banana ≈ 0,5 kg de tangerina a R$ 22/kg), e o item novo pode
+        custar no máximo {Math.round(MAX_PREMIUM * 100)}% a mais que o item trocado.
       </p>
+      {swapError && <p className="error">{swapError}</p>}
       {kitLines.map(({ it, index, assembly }) => {
         const comps = effectiveComponents(it, assembly);
         const customized = !!(it.components && it.components.length > 0);
