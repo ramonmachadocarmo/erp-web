@@ -1,8 +1,15 @@
-import { FormEvent, useState } from "react";
-import { Autocomplete, CadastroLayout, DataTable, DataTableColumn, LineItem, LineItems, PersonCreateModal, ProductCreateModal, StatusBadge, salesApi } from "@erp/shared";
+import { FormEvent, useMemo, useState } from "react";
+import { Autocomplete, CadastroLayout, DataTable, DataTableColumn, LineItem, LineItems, PersonCreateModal, ProductCreateModal, StatusBadge, salesApi, statusMeta } from "@erp/shared";
 import { AddressCreateModal } from "./AddressCreateModal";
 import { KitSubstitutions } from "./KitSubstitutions";
 import { addrLabel, fmtDate, freeMap, itemSummary, onHandMap, orderShort, personName, personOption, todayISO, withOrderStock } from "./helpers";
+
+// Ordem em que os status do pedido acontecem. "Pendente entrega" (o filtro padrão da listagem)
+// é tudo antes de Entregue: o pedido ainda passa por aqui até ser roteirizado e entregue —
+// Entregue, Faturado e Cancelado já saíram desse fluxo.
+const STATUS_ORDER = ["PENDING_RESERVATION", "APPROVED", "PICKING", "PICKED", "UNDELIVERED", "DELIVERED", "INVOICED", "CANCELLED"];
+const PENDING_DELIVERY_STATUSES = new Set(["PENDING_RESERVATION", "APPROVED", "PICKING", "PICKED", "UNDELIVERED"]);
+const STATUS_FILTER_PENDING = "__PENDING_DELIVERY__";
 
 type Props = {
   customers: any[];
@@ -34,6 +41,8 @@ export function Orders({ customers, products, assemblies, methods, terms, orders
   const [paymentStatus, setPaymentStatus] = useState(pdv ? "PAID" : "PENDING");
   const [editingOrder, setEditingOrder] = useState<any>(null);
   const [saving, setSaving] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<string>(STATUS_FILTER_PENDING);
+  const [deliveryFilter, setDeliveryFilter] = useState("");
 
   function clearOrderForm() {
     setItems([]);
@@ -122,6 +131,23 @@ export function Orders({ customers, products, assemblies, methods, terms, orders
       const kit = kitByProduct[p.id];
       return kit ? { ...p, name: `${p.name} (Kit ${kit.code} — ${kit.name})` } : p;
     });
+
+  // Status realmente presentes na listagem, na ordem do fluxo — evita opção vazia no filtro.
+  const statusOptions = STATUS_ORDER.filter((s) => orders.some((o) => o.status === s));
+  const deliveryDates = Array.from(new Set(orders.map((o) => o.delivery_date || "")))
+    .filter(Boolean)
+    .sort((a, b) => a.localeCompare(b));
+  const hasNoDate = orders.some((o) => !o.delivery_date);
+
+  const filteredOrders = useMemo(
+    () =>
+      orders.filter((o) => {
+        if (statusFilter === STATUS_FILTER_PENDING ? !PENDING_DELIVERY_STATUSES.has(o.status) : statusFilter && o.status !== statusFilter) return false;
+        if (deliveryFilter === "none" ? !!o.delivery_date : deliveryFilter && o.delivery_date !== deliveryFilter) return false;
+        return true;
+      }),
+    [orders, statusFilter, deliveryFilter],
+  );
 
   const orderColumns: DataTableColumn<any>[] = [
     { key: "customer", label: "Cliente", value: (o) => personName(customers, o.customer_id) },
@@ -287,7 +313,33 @@ export function Orders({ customers, products, assemblies, methods, terms, orders
             </div>
           </form>
         }
-        list={<DataTable columns={orderColumns} rows={orders} rowKey={(o) => o.id} emptyMessage="Nenhum pedido cadastrado." />}
+        list={
+          <>
+            <div className="row" style={{ marginTop: 0 }}>
+              <div className="field field-narrow">
+                <label>Status</label>
+                <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+                  <option value={STATUS_FILTER_PENDING}>Pendente entrega</option>
+                  <option value="">Todos</option>
+                  {statusOptions.map((s) => (
+                    <option key={s} value={s}>{statusMeta(s).label}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="field field-narrow">
+                <label>Entrega</label>
+                <select value={deliveryFilter} onChange={(e) => setDeliveryFilter(e.target.value)}>
+                  <option value="">Todas as datas</option>
+                  {deliveryDates.map((d) => (
+                    <option key={d} value={d}>{fmtDate(d)}</option>
+                  ))}
+                  {hasNoDate && <option value="none">Sem data</option>}
+                </select>
+              </div>
+            </div>
+            <DataTable columns={orderColumns} rows={filteredOrders} rowKey={(o) => o.id} emptyMessage="Nenhum pedido para os filtros selecionados." />
+          </>
+        }
       />
       {addressModal && customerId && (
         <AddressCreateModal
