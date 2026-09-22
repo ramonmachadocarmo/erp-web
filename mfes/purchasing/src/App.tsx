@@ -103,7 +103,6 @@ export default function App() {
   const [invoices, setInvoices] = useState<any[]>([]);
   const [conferring, setConferring] = useState<any>(null);
   const [conferCounts, setConferCounts] = useState<Record<string, number>>({});
-  const [conferScan, setConferScan] = useState("");
   const [conferFilter, setConferFilter] = useState<"pending" | "all">("pending");
   const [company, setCompany] = useState<CompanyHeaderInfo | undefined>(undefined);
   const [storagePlan, setStoragePlan] = useState<any[]>([]);
@@ -337,36 +336,13 @@ export default function App() {
     return orders.filter((o) => o.status === "RECEIVED");
   }
 
-  function parseScanInput(raw: string) {
-    const t = raw.trim();
-    const m = t.match(/^(.+?)\s*[,;]\s*(\d+(?:[.,]\d+)?)\s*$/);
-    if (!m) return { code: t, qty: 1 };
-    const qty = Number(m[2].replace(",", "."));
-    if (!Number.isFinite(qty) || qty <= 0) return { code: t, qty: 1 };
-    return { code: m[1].trim(), qty };
-  }
-
-  function resolveCode(code: string) {
-    const q = code.trim().toLowerCase();
-    if (!q) return null;
-    return products.find((p) => String(p.barcode).toLowerCase() === q || String(p.sku).toLowerCase() === q) || null;
-  }
-
-  function applyConferScan(raw: string) {
+  function toggleConferred(it: any) {
     if (!conferring) return;
-    const { code, qty } = parseScanInput(raw);
-    const product = resolveCode(code);
-    if (!product) {
-      setError("Código não encontrado");
-      return;
-    }
-    const expected = (conferring.items || []).find((it: any) => it.product_id === product.id);
-    if (!expected) {
-      setError("Produto não está no pedido");
-      return;
-    }
-    setConferCounts((cur) => ({ ...cur, [product.id]: (cur[product.id] || 0) + qty }));
-    setConferScan("");
+    const productId = it.product_id;
+    setConferCounts((cur) => {
+      const done = (cur[productId] || 0) + 1e-9 >= Number(it.quantity);
+      return { ...cur, [productId]: done ? 0 : Number(it.quantity) };
+    });
     setError("");
   }
 
@@ -650,7 +626,6 @@ export default function App() {
         <button type="button" className="secondary" onClick={() => {
           setConferring(o);
           setConferCounts({});
-          setConferScan("");
           setConferFilter("pending");
           setError("");
         }}>Conferir</button>
@@ -825,24 +800,6 @@ export default function App() {
                 <button type="button" className="secondary" onClick={() => setConferring(null)}>Voltar</button>
               </div>
               <div className="row" style={{ marginTop: 12 }}>
-                <div className="field">
-                  <label>Bipar código / SKU / barras</label>
-                  <input
-                    value={conferScan}
-                    placeholder="SKU,qtd  ex: 000001,25"
-                    onChange={(e) => setConferScan(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        applyConferScan(conferScan);
-                      }
-                    }}
-                  />
-                </div>
-                <button type="button" onClick={() => applyConferScan(conferScan)}>Bipar</button>
-                <button type="button" onClick={() => confirmConfer()}>Confirmar conferência</button>
-              </div>
-              <div className="row" style={{ marginTop: 12 }}>
                 <div className="field field-narrow">
                   <label>Mostrar</label>
                   <select value={conferFilter} onChange={(e) => setConferFilter(e.target.value as "pending" | "all")}>
@@ -850,6 +807,7 @@ export default function App() {
                     <option value="all">Todos</option>
                   </select>
                 </div>
+                <button type="button" onClick={() => confirmConfer()}>Confirmar conferência</button>
               </div>
               <div className="table-wrap"><table>
                 <thead>
@@ -870,7 +828,7 @@ export default function App() {
                         <tr key={it.product_id}>
                           <td>{p ? `${p.sku} — ${p.name}` : it.product_id}</td>
                           <td>{it.quantity}{p?.purchase_uom ? ` ${p.purchase_uom}` : ""}</td>
-                          <td>{conferCounts[it.product_id] || 0}</td>
+                          <td><input type="checkbox" checked={done} onChange={() => toggleConferred(it)} /></td>
                           <td><span className={`badge ${done ? "ok" : "warn"}`}>{done ? "Conferido" : "Pendente"}</span></td>
                         </tr>
                       );
