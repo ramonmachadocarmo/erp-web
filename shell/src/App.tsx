@@ -180,8 +180,13 @@ export default function App() {
         <Route path="/relatorios/kits" element={<Screen El={ReportsApp} />} />
         <Route path="/relatorios/estoque" element={<Screen El={ReportsApp} />} />
         <Route path="/relatorios/vendas" element={<Screen El={ReportsApp} />} />
+        <Route path="/relatorios/clientes" element={<Screen El={ReportsApp} />} />
+        <Route path="/relatorios/vendas-produto" element={<Screen El={ReportsApp} />} />
         <Route path="/relatorios/compras" element={<Screen El={ReportsApp} />} />
         <Route path="/relatorios/previsao" element={<Screen El={ReportsApp} />} />
+        <Route path="/relatorios/perdas" element={<Screen El={ReportsApp} />} />
+        <Route path="/relatorios/financeiro" element={<Screen El={ReportsApp} />} />
+        <Route path="/relatorios/fluxo" element={<Screen El={ReportsApp} />} />
         <Route path="/cadastros/unidades" element={<Navigate to="/config/cadastros/unidades" replace />} />
         <Route path="/cadastros/clientes" element={<Navigate to="/config/cadastros/clientes" replace />} />
         <Route path="/cadastros/fornecedores" element={<Navigate to="/config/cadastros/fornecedores" replace />} />

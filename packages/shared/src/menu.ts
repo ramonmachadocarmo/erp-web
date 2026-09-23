@@ -96,8 +96,13 @@ export const MENU: MenuGroup[] = [
       { to: "/relatorios/kits", label: "Kits" },
       { to: "/relatorios/estoque", label: "Estoque de produtos" },
       { to: "/relatorios/vendas", label: "Pedidos de venda" },
+      { to: "/relatorios/clientes", label: "Ranking de clientes" },
+      { to: "/relatorios/vendas-produto", label: "Vendas por produto" },
       { to: "/relatorios/compras", label: "Pedidos de compra" },
       { to: "/relatorios/previsao", label: "Previsão" },
+      { to: "/relatorios/perdas", label: "Perdas" },
+      { to: "/relatorios/financeiro", label: "Contas a pagar/receber" },
+      { to: "/relatorios/fluxo", label: "Fluxo de caixa: realizado × projetado" },
     ],
   },
   {

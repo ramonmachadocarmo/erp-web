@@ -1,6 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
-import { CompanyHeaderInfo, DataTable, DataTableColumn, Loading, companyHeaderInfo, configApi, reportsApi } from "@erp/shared";
+import {
+  Autocomplete,
+  CompanyHeaderInfo,
+  DataTable,
+  DataTableColumn,
+  Loading,
+  companyHeaderInfo,
+  configApi,
+  reportsApi,
+  stockApi,
+} from "@erp/shared";
 import { Column, KitPdfRow, exportCsv, exportKitsPdf, exportPdf, exportXlsx } from "./export";
 
 const titles: Record<string, string> = {
@@ -9,6 +19,11 @@ const titles: Record<string, string> = {
   vendas: "Pedidos de venda",
   compras: "Pedidos de compra",
   previsao: "Previsão",
+  perdas: "Perdas",
+  financeiro: "Contas a pagar/receber",
+  clientes: "Ranking de clientes",
+  fluxo: "Fluxo de caixa: realizado × projetado",
+  "vendas-produto": "Vendas por produto",
 };
 
 function fmtQty(n: number) {
@@ -21,6 +36,25 @@ function brl(n: number) {
 
 function fmtDate(s: string) {
   return s ? new Date(s).toLocaleString("pt-BR") : "";
+}
+
+function fmtDateOnly(s: string) {
+  return s ? new Date(s).toLocaleDateString("pt-BR") : "";
+}
+
+function dirLabel(d: string) {
+  return d === "IN" ? "Entrada" : "Saída";
+}
+
+function cashStatusLabel(status: string, overdue: boolean) {
+  if (overdue) return "Atrasado";
+  return status === "CONFIRMED" ? "Confirmado" : "Previsto";
+}
+
+function originLabel(referenceType: string) {
+  if (referenceType === "SALE") return "Venda";
+  if (referenceType === "PURCHASE") return "Compra";
+  return "Manual";
 }
 
 function kitItemsText(items: any[]) {
@@ -59,6 +93,20 @@ const COLUMNS: Record<string, Column[]> = {
     { key: "item_summary", label: "Itens" },
     { key: "total_amount", label: "Total" },
   ],
+  clientes: [
+    { key: "customer_name", label: "Cliente" },
+    { key: "order_count", label: "Pedidos" },
+    { key: "total_amount", label: "Total comprado" },
+    { key: "average_ticket", label: "Ticket médio" },
+  ],
+  "vendas-produto": [
+    { key: "sku", label: "SKU" },
+    { key: "product_name", label: "Produto" },
+    { key: "uom", label: "Unidade" },
+    { key: "quantity", label: "Quantidade vendida" },
+    { key: "order_count", label: "Pedidos" },
+    { key: "total_amount", label: "Total vendido" },
+  ],
   compras: [
     { key: "createdAtText", label: "Data" },
     { key: "supplier_name", label: "Fornecedor" },
@@ -75,10 +123,42 @@ const COLUMNS: Record<string, Column[]> = {
     { key: "open_po_qty", label: "Em compra" },
     { key: "needed_qty", label: "Necessário" },
   ],
+  perdas: [
+    { key: "createdAtText", label: "Data" },
+    { key: "sku", label: "SKU" },
+    { key: "product_name", label: "Produto" },
+    { key: "warehouse_name", label: "Almoxarifado" },
+    { key: "uom", label: "Unidade" },
+    { key: "quantity", label: "Quantidade" },
+  ],
+  financeiro: [
+    { key: "dueDateText", label: "Vencimento" },
+    { key: "directionText", label: "Tipo" },
+    { key: "party_name", label: "Cliente/Fornecedor" },
+    { key: "amount", label: "Valor" },
+    { key: "statusText", label: "Status" },
+    { key: "payment_method_name", label: "Forma" },
+    { key: "installmentText", label: "Parcela" },
+    { key: "originText", label: "Origem" },
+    { key: "description", label: "Descrição" },
+  ],
+  fluxo: [
+    { key: "dateText", label: "Data" },
+    { key: "realized_inflow", label: "Entradas realizadas" },
+    { key: "realized_outflow", label: "Saídas realizadas" },
+    { key: "realized_net", label: "Líquido realizado" },
+    { key: "projected_inflow", label: "Entradas previstas" },
+    { key: "projected_outflow", label: "Saídas previstas" },
+    { key: "projected_net", label: "Líquido previsto" },
+    { key: "balance", label: "Saldo acumulado" },
+  ],
 };
 
-const CURRENCY_KEYS = new Set(["cost", "suggested_price", "total_amount"]);
-const QTY_KEYS = new Set(["quantity_available", "quantity_reserved", "forecast_qty", "on_hand_qty", "open_po_qty", "needed_qty"]);
+const CURRENCY_KEYS = new Set([
+  "cost", "suggested_price", "total_amount", "amount", "average_ticket",
+  "realized_inflow", "realized_outflow", "realized_net", "projected_inflow", "projected_outflow", "projected_net", "balance",
+]);
+const QTY_KEYS = new Set(["quantity_available", "quantity_reserved", "forecast_qty", "on_hand_qty", "open_po_qty", "needed_qty", "quantity", "order_count"]);
 
 // Flat export shape for kits: one row per (kit, item) pair, kit-level totals
 // repeated on every row of that kit so a spreadsheet can filter/pivot either way.
@@ -137,12 +217,26 @@ export default function App() {
     configApi.company().then((co) => setCompany(companyHeaderInfo(co))).catch(() => {});
   }, []);
 
+  const [products, setProducts] = useState<any[]>([]);
+  const [warehouses, setWarehouses] = useState<any[]>([]);
+  useEffect(() => {
+    stockApi.products().then(setProducts).catch(() => {});
+    stockApi.warehouses().then(setWarehouses).catch(() => {});
+  }, []);
+  const productOptions = useMemo(() => products.map((p) => ({ value: p.id, code: p.sku, description: p.name })), [products]);
+  const warehouseOptions = useMemo(() => warehouses.map((w) => ({ value: w.id, code: w.code, description: w.name })), [warehouses]);
+
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [coverageWeeks, setCoverageWeeks] = useState(4);
   const [safetyPercent, setSafetyPercent] = useState(10);
   const [lookbackWeeks, setLookbackWeeks] = useState(8);
   const [showOnlyActiveKits, setShowOnlyActiveKits] = useState(true);
+  const [lossProductId, setLossProductId] = useState("");
+  const [lossWarehouseId, setLossWarehouseId] = useState("");
+  const [cfDirection, setCfDirection] = useState("");
+  const [cfStatus, setCfStatus] = useState("");
+  const [cfOnlyOverdue, setCfOnlyOverdue] = useState(false);
 
   const columns = COLUMNS[page] || COLUMNS.kits;
 
@@ -155,8 +249,26 @@ export default function App() {
       else if (page === "estoque") data = await reportsApi.stock();
       else if (page === "vendas") data = await reportsApi.sales(dayStart(from), dayEnd(to));
       else if (page === "compras") data = await reportsApi.purchases(dayStart(from), dayEnd(to));
+      else if (page === "clientes") data = await reportsApi.customerRanking(dayStart(from), dayEnd(to));
+      else if (page === "vendas-produto") data = await reportsApi.productSales(dayStart(from), dayEnd(to));
       else if (page === "previsao")
         data = await reportsApi.forecast({ coverage_weeks: coverageWeeks, safety_percent: safetyPercent, lookback_weeks: lookbackWeeks });
+      else if (page === "perdas")
+        data = await reportsApi.losses({
+          from: dayStart(from),
+          to: dayEnd(to),
+          product_id: lossProductId || undefined,
+          warehouse_id: lossWarehouseId || undefined,
+        });
+      else if (page === "financeiro")
+        data = await reportsApi.cashflow({
+          from: dayStart(from),
+          to: dayEnd(to),
+          direction: cfDirection || undefined,
+          status: cfStatus || undefined,
+          overdue: cfOnlyOverdue || undefined,
+        });
+      else if (page === "fluxo") data = await reportsApi.cashflowTimeline(dayStart(from), dayEnd(to));
       setRows(data);
     } catch (err: any) {
       setError(err.message);
@@ -169,6 +281,11 @@ export default function App() {
     load();
     setFrom("");
     setTo("");
+    setLossProductId("");
+    setLossWarehouseId("");
+    setCfDirection("");
+    setCfStatus("");
+    setCfOnlyOverdue(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page]);
 
@@ -183,7 +300,20 @@ export default function App() {
         ...r,
         itemsText: page === "kits" ? kitItemsText(r.items) : undefined,
         createdAtText: r.created_at ? fmtDate(r.created_at) : undefined,
-        _key: r.order_id || r.code || (r.sku && r.warehouse_code ? `${r.sku}-${r.warehouse_code}` : r.sku) || String(i),
+        dueDateText: page === "financeiro" && r.due_date ? fmtDateOnly(r.due_date) : undefined,
+        directionText: page === "financeiro" ? dirLabel(r.direction) : undefined,
+        statusText: page === "financeiro" ? cashStatusLabel(r.status, r.overdue) : undefined,
+        installmentText: page === "financeiro" ? `${r.installment_no}/${r.installments_total}` : undefined,
+        originText: page === "financeiro" ? originLabel(r.reference_type) : undefined,
+        dateText: page === "fluxo" && r.date ? fmtDateOnly(r.date) : undefined,
+        _key:
+          page === "perdas"
+            ? `${r.sku}-${r.warehouse_code}-${r.created_at}-${i}`
+            : page === "financeiro"
+            ? `${r.reference_type}-${r.due_date}-${r.installment_no}-${i}`
+            : page === "fluxo"
+            ? r.date
+            : r.order_id || r.code || (r.sku && r.warehouse_code ? `${r.sku}-${r.warehouse_code}` : r.sku) || String(i),
       })),
     [rows, page]
   );
@@ -275,15 +405,63 @@ export default function App() {
       <h1>{titles[page] || "Relatórios"}</h1>
       {error && <p className="error">{error}</p>}
       <div className="card">
-        {(page === "vendas" || page === "compras") && (
+        {(page === "vendas" || page === "compras" || page === "perdas" || page === "financeiro" || page === "clientes" || page === "fluxo" || page === "vendas-produto") && (
           <div className="row">
             <div className="field">
-              <label>De</label>
+              <label>{page === "financeiro" || page === "fluxo" ? "Vencimento de" : "De"}</label>
               <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
             </div>
             <div className="field">
-              <label>Até</label>
+              <label>{page === "financeiro" || page === "fluxo" ? "Vencimento até" : "Até"}</label>
               <input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+            </div>
+          </div>
+        )}
+        {page === "financeiro" && (
+          <div className="row">
+            <div className="field">
+              <label>Tipo</label>
+              <select value={cfDirection} onChange={(e) => setCfDirection(e.target.value)}>
+                <option value="">Todos</option>
+                <option value="IN">Entrada</option>
+                <option value="OUT">Saída</option>
+              </select>
+            </div>
+            <div className="field">
+              <label>Status</label>
+              <select value={cfStatus} onChange={(e) => setCfStatus(e.target.value)}>
+                <option value="">Todos</option>
+                <option value="PENDING">Previsto</option>
+                <option value="CONFIRMED">Confirmado</option>
+              </select>
+            </div>
+            <label className="field" style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+              <input type="checkbox" checked={cfOnlyOverdue} onChange={(e) => setCfOnlyOverdue(e.target.checked)} />
+              Somente atrasados
+            </label>
+          </div>
+        )}
+        {page === "perdas" && (
+          <div className="row">
+            <div className="field">
+              <label>Produto</label>
+              <Autocomplete
+                value={lossProductId}
+                options={productOptions}
+                allowEmpty
+                emptyLabel="Todos os produtos"
+                onChange={setLossProductId}
+              />
+            </div>
+            <div className="field">
+              <label>Almoxarifado</label>
+              <Autocomplete
+                value={lossWarehouseId}
+                options={warehouseOptions}
+                allowEmpty
+                emptyLabel="Todos os almoxarifados"
+                onChange={setLossWarehouseId}
+              />
             </div>
           </div>
         )}

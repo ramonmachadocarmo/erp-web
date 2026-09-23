@@ -435,6 +435,20 @@ export const reportsApi = {
     const qs = q.toString();
     return request<any[]>("/api/reports", `/purchases${qs ? `?${qs}` : ""}`);
   },
+  customerRanking: (from?: string, to?: string) => {
+    const q = new URLSearchParams();
+    if (from) q.set("from", from);
+    if (to) q.set("to", to);
+    const qs = q.toString();
+    return request<any[]>("/api/reports", `/customer-ranking${qs ? `?${qs}` : ""}`);
+  },
+  productSales: (from?: string, to?: string) => {
+    const q = new URLSearchParams();
+    if (from) q.set("from", from);
+    if (to) q.set("to", to);
+    const qs = q.toString();
+    return request<any[]>("/api/reports", `/product-sales${qs ? `?${qs}` : ""}`);
+  },
   forecast: (params: { coverage_weeks?: number; safety_percent?: number; lookback_weeks?: number }) => {
     const q = new URLSearchParams();
     if (params.coverage_weeks != null) q.set("coverage_weeks", String(params.coverage_weeks));
@@ -442,6 +456,32 @@ export const reportsApi = {
     if (params.lookback_weeks != null) q.set("lookback_weeks", String(params.lookback_weeks));
     const qs = q.toString();
     return request<any[]>("/api/reports", `/forecast${qs ? `?${qs}` : ""}`);
+  },
+  losses: (params: { from?: string; to?: string; product_id?: string; warehouse_id?: string }) => {
+    const q = new URLSearchParams();
+    if (params.from) q.set("from", params.from);
+    if (params.to) q.set("to", params.to);
+    if (params.product_id) q.set("product_id", params.product_id);
+    if (params.warehouse_id) q.set("warehouse_id", params.warehouse_id);
+    const qs = q.toString();
+    return request<any[]>("/api/reports", `/losses${qs ? `?${qs}` : ""}`);
+  },
+  cashflow: (params: { from?: string; to?: string; direction?: string; status?: string; overdue?: boolean }) => {
+    const q = new URLSearchParams();
+    if (params.from) q.set("from", params.from);
+    if (params.to) q.set("to", params.to);
+    if (params.direction) q.set("direction", params.direction);
+    if (params.status) q.set("status", params.status);
+    if (params.overdue) q.set("overdue", "true");
+    const qs = q.toString();
+    return request<any[]>("/api/reports", `/cashflow${qs ? `?${qs}` : ""}`);
+  },
+  cashflowTimeline: (from?: string, to?: string) => {
+    const q = new URLSearchParams();
+    if (from) q.set("from", from);
+    if (to) q.set("to", to);
+    const qs = q.toString();
+    return request<any[]>("/api/reports", `/cashflow-timeline${qs ? `?${qs}` : ""}`);
   },
 };
 
