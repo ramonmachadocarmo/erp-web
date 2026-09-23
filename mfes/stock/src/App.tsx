@@ -127,10 +127,10 @@ export default function App() {
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [editingAssembly, setEditingAssembly] = useState<any>(null);
   const [editingWarehouse, setEditingWarehouse] = useState<any>(null);
-  const [editingBalance, setEditingBalance] = useState<any>(null);
   const [items, setItems] = useState<Item[]>([emptyItem()]);
   const [seedMarginPercent, setSeedMarginPercent] = useState(30);
   const [assemblyProductId, setAssemblyProductId] = useState("");
+  const [moveProduct, setMoveProduct] = useState("");
   const [moveDir, setMoveDir] = useState("");
   const [moveSub, setMoveSub] = useState("");
   const [moveFrom, setMoveFrom] = useState("");
@@ -152,6 +152,7 @@ export default function App() {
   const [productModal, setProductModal] = useState(false);
   const [warehouseModal, setWarehouseModal] = useState(false);
   const [warehouseId, setWarehouseId] = useState("");
+  const [movingBalance, setMovingBalance] = useState<any | null>(null);
   const [reservationsFor, setReservationsFor] = useState<any | null>(null);
   const [reservations, setReservations] = useState<any[]>([]);
   const [reservationsLoading, setReservationsLoading] = useState(false);
@@ -517,7 +518,6 @@ export default function App() {
         quantity: Number(f.get("quantity")),
       });
       form.reset();
-      setEditingBalance(null);
       setWarehouseId("");
       setFormOpen(false);
       await load();
@@ -549,10 +549,12 @@ export default function App() {
         });
       }
       form.reset();
+      setMoveProduct("");
       setMoveDir("");
       setMoveSub("");
       setMoveFrom("");
       setMoveTo("");
+      setMovingBalance(null);
       await load();
     } catch (err: any) {
       setError(err.message);
@@ -792,7 +794,22 @@ export default function App() {
       sortable: false,
       filterable: false,
       render: (b) => (
-        <button className="secondary" onClick={() => { setEditingBalance(b); setWarehouseId(b.warehouse_id); setFormOpen(true); }}>Editar</button>
+        <button
+          className="secondary"
+          onClick={() => {
+            // Saldo não é mais editado direto — ajusta só via movimento (kardex), pra manter o
+            // histórico de estoque completo. Abre o mesmo form de Movimentos num modal, sem sair
+            // de Saldos, já com produto e almoxarifado deste saldo pré-preenchidos.
+            setMoveProduct(b.product_id);
+            setMoveDir("");
+            setMoveSub("");
+            setMoveFrom(b.warehouse_id);
+            setMoveTo("");
+            setMovingBalance(b);
+          }}
+        >
+          Movimentar
+        </button>
       ),
     },
   ];
@@ -1109,14 +1126,13 @@ export default function App() {
           onFormOpen={setFormOpen}
           onListOpen={setListOpen}
           form={
-            <form className="row" key={editingBalance?.id ?? "new"} onSubmit={addBalance}>
+            <form className="row" onSubmit={addBalance}>
               <div className="field">
                 <label>Produto</label>
                 <Autocomplete
                   name="product_id"
                   options={products.filter((p) => p.kind !== "FIXED_ASSET").map((p) => ({ value: p.id, code: p.sku, description: p.name }))}
                   required
-                  defaultValue={editingBalance?.product_id ?? ""}
                   createLabel="Cadastrar produto"
                   onCreate={() => setProductModal(true)}
                 />
@@ -1125,7 +1141,7 @@ export default function App() {
                 <label>Almoxarifado</label>
                 <Autocomplete
                   name="warehouse_id"
-                  value={warehouseId || editingBalance?.warehouse_id || ""}
+                  value={warehouseId}
                   options={warehouseOptions}
                   required
                   createLabel="Cadastrar almoxarifado"
@@ -1133,13 +1149,64 @@ export default function App() {
                   onChange={setWarehouseId}
                 />
               </div>
-              <div className="field"><label>Qtd (un. venda)</label><input name="quantity" type="number" step="0.0001" required defaultValue={editingBalance?.quantity_available ?? ""} /></div>
-              <button>{editingBalance ? "Salvar saldo" : "Definir saldo"}</button>
-              {editingBalance && <button type="button" className="secondary" onClick={() => { setEditingBalance(null); setWarehouseId(""); setFormOpen(false); }}>Cancelar</button>}
+              <div className="field"><label>Qtd (un. venda)</label><input name="quantity" type="number" step="0.0001" required /></div>
+              <button>Definir saldo</button>
             </form>
           }
           list={<DataTable columns={balanceColumns} rows={balances} rowKey={(b) => b.id} emptyMessage="Nenhum saldo cadastrado." />}
         />
+      )}
+      {movingBalance && (
+        <Modal title="Movimentar estoque" onClose={() => setMovingBalance(null)}>
+          <p className="muted">
+            {productName(movingBalance.product_id)} — {warehouses.find((w) => w.id === movingBalance.warehouse_id)?.name || movingBalance.warehouse_id}
+          </p>
+          {error && <p className="error">{error}</p>}
+          <form className="row" onSubmit={addMovement}>
+            <input type="hidden" name="product_id" value={moveProduct} />
+            <div className="field">
+              <label>Tipo</label>
+              <Autocomplete
+                required
+                value={moveDir}
+                options={[
+                  { value: "IN", code: "IN", description: "Entrada" },
+                  { value: "OUT", code: "OUT", description: "Saída" },
+                  { value: "TRANSFER", code: "TRANSFER", description: "Transferência entre almoxarifados" },
+                ]}
+                onChange={(v) => {
+                  setMoveDir(v);
+                  setMoveSub("");
+                  setMoveTo("");
+                }}
+              />
+            </div>
+            {moveDir && moveDir !== "TRANSFER" && (
+              <div className="field">
+                <label>Subtipo</label>
+                <Autocomplete
+                  required
+                  value={moveSub}
+                  options={(MOVE_SUBTYPES[moveDir] || []).map((s) => ({ value: s.value, code: s.value, description: s.label }))}
+                  onChange={setMoveSub}
+                />
+              </div>
+            )}
+            {moveDir === "TRANSFER" && (
+              <div className="field">
+                <label>Almoxarifado de destino</label>
+                <Autocomplete
+                  required
+                  value={moveTo}
+                  options={warehouseOptions.filter((w) => w.value !== moveFrom)}
+                  onChange={setMoveTo}
+                />
+              </div>
+            )}
+            <div className="field"><label>Qtd</label><input name="quantity" type="number" step="0.0001" required /></div>
+            <button disabled={!moveDir || (moveDir === "TRANSFER" ? !moveTo : !moveSub)}>Movimentar</button>
+          </form>
+        </Modal>
       )}
       {reservationsFor && (
         <Modal title="Pedidos com reserva" onClose={() => setReservationsFor(null)}>
@@ -1186,10 +1253,12 @@ export default function App() {
                 <label>Produto</label>
                 <Autocomplete
                   name="product_id"
+                  value={moveProduct}
                   options={products.filter((p) => p.kind !== "FIXED_ASSET").map((p) => ({ value: p.id, code: p.sku, description: p.name }))}
                   required
                   createLabel="Cadastrar produto"
                   onCreate={() => setProductModal(true)}
+                  onChange={setMoveProduct}
                 />
               </div>
               <div className="field">
