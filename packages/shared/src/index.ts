@@ -34,8 +34,8 @@ export type { PurchaseDoc, PurchaseDocItem, PurchaseDocColumnKey } from "./purch
 export { companyHeaderInfo, drawCompanyHeader } from "./companyHeader";
 export type { CompanyHeaderInfo } from "./companyHeader";
 export { readLogoFile } from "./logo";
-export { mapsDirUrl, mapsStopUrl, wazeNavUrl } from "./maps";
-export type { Geo } from "./maps";
+export { addressQuery, mapsDirUrl, mapsStopUrl, wazeNavUrl } from "./maps";
+export type { AddressLike, Geo } from "./maps";
 export { MapPicker, MapRoute } from "./MapPicker";
 export { StatusBadge, statusMeta } from "./StatusBadge";
 export { DataTable } from "./DataTable";

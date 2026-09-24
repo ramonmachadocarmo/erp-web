@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { CompanyHeaderInfo, Loading, MapRoute, StatusBadge, mapsDirUrl, mapsStopUrl, openRoutePdf, salesApi, wazeNavUrl } from "@erp/shared";
+import { CompanyHeaderInfo, Loading, MapRoute, StatusBadge, addressQuery, mapsDirUrl, mapsStopUrl, openRoutePdf, salesApi, wazeNavUrl } from "@erp/shared";
 import { addrLabel, km, mins, personName } from "./helpers";
 
 export function RouteReport({ planId, customers, company }: { planId: string; customers: any[]; company?: CompanyHeaderInfo }) {
@@ -26,9 +26,11 @@ export function RouteReport({ planId, customers, company }: { planId: string; cu
   const retDist = Math.max(0, Number(plan.distance_m || 0) - legsDist);
   const retDur = Math.max(0, Number(plan.duration_s || 0) - legsDur);
   const depot = plan.center_lat ? { lat: plan.center_lat, lng: plan.center_lng } : undefined;
-  const geoStops = stops.filter((s: any) => s.lat && s.lng).map((s: any) => ({ lat: s.lat, lng: s.lng }));
-  const mapsUrl = mapsDirUrl(depot, geoStops);
-  const first = geoStops[0];
+  // Links pro Maps/Waze vão pelo endereço em texto, não pelo lat/lng salvo — deixa o app de
+  // navegação geocodificar, mais confiável que a coordenada cacheada (ver maps.ts).
+  const addressedStops = stops.filter((s: any) => s.address && (s.address.street || s.address.zip));
+  const mapsUrl = mapsDirUrl(depot, addressedStops.map((s: any) => addressQuery(s.address)));
+  const first = addressedStops[0];
 
   function pdf() {
     openRoutePdf({
@@ -53,7 +55,7 @@ export function RouteReport({ planId, customers, company }: { planId: string; cu
         <button type="button" className="secondary" onClick={() => navigate("/logistica/rotas")}>Voltar</button>
         <button type="button" className="secondary" onClick={pdf}>PDF</button>
         {mapsUrl && <button type="button" className="secondary" onClick={() => window.open(mapsUrl, "_blank")}>Google Maps</button>}
-        {first && <button type="button" className="secondary" onClick={() => window.open(wazeNavUrl(first.lat, first.lng), "_blank")}>Waze (1ª parada)</button>}
+        {first && <button type="button" className="secondary" onClick={() => window.open(wazeNavUrl(addressQuery(first.address)), "_blank")}>Waze (1ª parada)</button>}
       </div>
       <p style={{ marginTop: 12 }}>
         {plan.vehicle_code} {plan.vehicle_name} · {plan.center_name} · <StatusBadge status={plan.status} />
@@ -85,10 +87,10 @@ export function RouteReport({ planId, customers, company }: { planId: string; cu
                 <td className="muted">{addrLabel(s.address)}</td>
                 <td className="muted">{km(s.distance_m)} · {mins(s.duration_s)}</td>
                 <td className="row">
-                  {s.lat && s.lng && (
+                  {s.address && (s.address.street || s.address.zip) && (
                     <>
-                      <button type="button" className="secondary" onClick={() => window.open(mapsStopUrl(s.lat, s.lng), "_blank")}>Maps</button>
-                      <button type="button" className="secondary" onClick={() => window.open(wazeNavUrl(s.lat, s.lng), "_blank")}>Waze</button>
+                      <button type="button" className="secondary" onClick={() => window.open(mapsStopUrl(addressQuery(s.address)), "_blank")}>Maps</button>
+                      <button type="button" className="secondary" onClick={() => window.open(wazeNavUrl(addressQuery(s.address)), "_blank")}>Waze</button>
                     </>
                   )}
                 </td>

@@ -47,15 +47,6 @@ function itemsDone(order: any, assemblies: any[]) {
   return Object.entries(requirements(order, assemblies)).every(([pid, qty]) => pickedQty(order, pid) + 1e-9 >= qty);
 }
 
-function parseScanInput(raw: string) {
-  const t = raw.trim();
-  const m = t.match(/^(.+?)\s*[,;]\s*(\d+(?:[.,]\d+)?)\s*$/);
-  if (!m) return { code: t, qty: 1, hasQty: false };
-  const qty = Number(m[2].replace(",", "."));
-  if (!Number.isFinite(qty) || qty <= 0) return { code: t, qty: 1, hasQty: false };
-  return { code: m[1].trim(), qty, hasQty: true };
-}
-
 export function Picking({ orders, assemblies, products, warehouses, customers, balances, defaultWarehouse, error, onReload, onError, company }: Props) {
   const [picking, setPicking] = useState<any>(null);
   const [pickWh, setPickWh] = useState("");
@@ -82,7 +73,7 @@ export function Picking({ orders, assemblies, products, warehouses, customers, b
   async function applyScan(raw: string) {
     if (!picking) return;
     const weighed = decodeWeightBarcode(raw);
-    const { code, qty, hasQty } = weighed ? { code: weighed.sku, qty: weighed.weightKg, hasQty: true } : parseScanInput(raw);
+    const { code, qty, hasQty } = weighed ? { code: weighed.sku, qty: weighed.weightKg, hasQty: true } : { code: raw.trim(), qty: 1, hasQty: false };
     const q = code.trim().toLowerCase();
     if (!q) return;
     const product = products.find((p) => String(p.barcode).toLowerCase() === q || String(p.sku).toLowerCase() === q) || null;
@@ -281,7 +272,7 @@ export function Picking({ orders, assemblies, products, warehouses, customers, b
               <label>Bipar código / SKU / barras</label>
               <input
                 value={scanCode}
-                placeholder="SKU,qtd  ex: 000001,25"
+                placeholder="SKU  ex: 000001"
                 onChange={(e) => setScanCode(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
@@ -293,7 +284,7 @@ export function Picking({ orders, assemblies, products, warehouses, customers, b
             </div>
             <button type="button" disabled={picking.status === "PICKED"} onClick={() => applyScan(scanCode)}>Bipar</button>
           </div>
-          <p className="muted">Digite código,quantidade ou bipe o produto. Bipe a etiqueta de pesagem para lançar produto e peso automaticamente. Bipe o código do almoxarifado para trocar o destino. Informe os volumes e finalize para gerar as etiquetas.</p>
+          <p className="muted">Digite o SKU ou bipe o produto (cada leitura lança 1 unidade). Bipe a etiqueta de pesagem para lançar produto e peso automaticamente. Bipe o código do almoxarifado para trocar o destino. Informe os volumes e finalize para gerar as etiquetas.</p>
           <div className="table-wrap"><table>
             <thead>
               <tr>
