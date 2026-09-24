@@ -2,14 +2,10 @@ import { FormEvent, useMemo, useState } from "react";
 import { Autocomplete, CadastroLayout, DataTable, DataTableColumn, LineItem, LineItems, PersonCreateModal, ProductCreateModal, StatusBadge, salesApi, statusMeta } from "@erp/shared";
 import { AddressCreateModal } from "./AddressCreateModal";
 import { KitSubstitutions } from "./KitSubstitutions";
-import { addrLabel, fmtDate, freeMap, itemSummary, onHandMap, orderShort, personName, personOption, todayISO, withOrderStock } from "./helpers";
-
-// Ordem em que os status do pedido acontecem. "Pendente entrega" (o filtro padrão da listagem)
-// é tudo antes de Entregue: o pedido ainda passa por aqui até ser roteirizado e entregue —
-// Entregue, Faturado e Cancelado já saíram desse fluxo.
-const STATUS_ORDER = ["PENDING_RESERVATION", "APPROVED", "PICKING", "PICKED", "UNDELIVERED", "DELIVERED", "INVOICED", "CANCELLED"];
-const PENDING_DELIVERY_STATUSES = new Set(["PENDING_RESERVATION", "APPROVED", "PICKING", "PICKED", "UNDELIVERED"]);
-const STATUS_FILTER_PENDING = "__PENDING_DELIVERY__";
+import {
+  PENDING_DELIVERY_STATUSES, STATUS_FILTER_PENDING, STATUS_ORDER,
+  addrLabel, fmtDate, freeMap, itemSummary, onHandMap, orderShort, personName, personOption, todayISO, withOrderStock,
+} from "./helpers";
 
 type Props = {
   customers: any[];

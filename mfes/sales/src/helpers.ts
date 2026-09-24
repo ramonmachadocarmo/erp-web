@@ -99,6 +99,29 @@ export function formatDateTime(d: Date) {
   return `${date} ${time}`;
 }
 
+// Ordem em que os status do pedido acontecem. "Pendente entrega" (o filtro padrão em Pedidos e em
+// Pesagem de pedidos) é tudo antes de Entregue: o pedido ainda passa por aqui até ser roteirizado e
+// entregue — Entregue, Faturado e Cancelado já saíram desse fluxo.
+export const STATUS_ORDER = ["PENDING_RESERVATION", "APPROVED", "PICKING", "PICKED", "UNDELIVERED", "DELIVERED", "INVOICED", "CANCELLED"];
+export const PENDING_DELIVERY_STATUSES = new Set(["PENDING_RESERVATION", "APPROVED", "PICKING", "PICKED", "UNDELIVERED"]);
+export const STATUS_FILTER_PENDING = "__PENDING_DELIVERY__";
+
+export type Component = { product_id: string; quantity: number };
+
+// Mirrors sales-service's domain.PickRequirements: a kit line is separated by its components
+// (customer substitutions on the line win over the Montagem recipe), not by the kit product itself.
+// Used by Picking (separação) and OrderWeighing (pesagem) — both need the order's real, as-sold
+// item list, not the kit's default recipe.
+export function kitComponents(item: any, assemblies: any[]): Component[] | null {
+  const kit = (assemblies || []).find((a) => a.product_id && a.product_id === item.product_id);
+  if (!kit) return null;
+  const own = (item.components || []).filter((c: any) => c.product_id && Number(c.quantity) > 0);
+  const comps: Component[] = own.length > 0
+    ? own.map((c: any) => ({ product_id: c.product_id, quantity: Number(c.quantity) }))
+    : (kit.items || []).map((ai: any) => ({ product_id: ai.product_id, quantity: Number(ai.quantity) * Number(item.quantity) }));
+  return comps.length > 0 ? comps : null;
+}
+
 export function itemSummary(items: any[], products: any[]) {
   return (items || [])
     .map((it) => {

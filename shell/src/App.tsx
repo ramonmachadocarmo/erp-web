@@ -138,13 +138,11 @@ export default function App() {
         <Route path="/producao/produtos" element={<Screen El={StockApp} />} />
         <Route path="/producao/categorias" element={<Screen El={StockApp} />} />
         <Route path="/producao/montagem" element={<Screen El={StockApp} />} />
-        <Route path="/producao/pesagem" element={<Screen El={SalesApp} />} />
         <Route path="/pdv/pesagem" element={<Screen El={SalesApp} />} />
         <Route path="/pdv/pedidos" element={<Screen El={SalesApp} />} />
         <Route path="/estoque/almoxarifados" element={<Screen El={StockApp} />} />
         <Route path="/estoque/saldos" element={<Screen El={StockApp} />} />
         <Route path="/estoque/movimentos" element={<Screen El={StockApp} />} />
-        <Route path="/estoque/pesagem-kits" element={<Screen El={SalesApp} />} />
         <Route path="/vendas/precos" element={<Screen El={StockApp} />} />
         <Route path="/config/regras" element={<Screen El={ConfigApp} />} />
         <Route path="/config/empresa" element={<Screen El={ConfigApp} />} />
@@ -157,8 +155,9 @@ export default function App() {
         <Route path="/compras/historico" element={<Screen El={PurchasingApp} />} />
         <Route path="/logistica/entrada" element={<Screen El={PurchasingApp} />} />
         <Route path="/logistica/conferencia" element={<Screen El={PurchasingApp} />} />
-        <Route path="/logistica/pesagem" element={<Navigate to="/producao/pesagem" replace />} />
+        <Route path="/logistica/pesagem" element={<Navigate to="/pdv/pesagem" replace />} />
         <Route path="/logistica/separacao" element={<Screen El={SalesApp} />} />
+        <Route path="/logistica/pesagem-pedidos" element={<Screen El={SalesApp} />} />
         <Route path="/logistica/rotas/:id" element={<Screen El={SalesApp} />} />
         <Route path="/logistica/rotas" element={<Screen El={SalesApp} />} />
         <Route path="/logistica/entrega" element={<Screen El={SalesApp} />} />

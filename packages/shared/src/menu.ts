@@ -19,7 +19,6 @@ export const MENU: MenuGroup[] = [
       { to: "/producao/categorias", label: "Categorias" },
       { to: "/producao/produtos", label: "Produtos" },
       { to: "/producao/montagem", label: "Montagem" },
-      { to: "/producao/pesagem", label: "Pesagem" },
     ],
   },
   {
@@ -28,7 +27,6 @@ export const MENU: MenuGroup[] = [
       { to: "/estoque/almoxarifados", label: "Almoxarifados" },
       { to: "/estoque/saldos", label: "Saldos" },
       { to: "/estoque/movimentos", label: "Movimentos" },
-      { to: "/estoque/pesagem-kits", label: "Pesagem de kits" },
     ],
   },
   {
@@ -48,12 +46,23 @@ export const MENU: MenuGroup[] = [
   },
   {
     title: "Logística",
-    items: [
-      { to: "/logistica/entrada", label: "Entrada" },
-      { to: "/logistica/conferencia", label: "Conferência" },
-      { to: "/logistica/separacao", label: "Separação" },
-      { to: "/logistica/rotas", label: "Rotas" },
-      { to: "/logistica/entrega", label: "Entrega" },
+    groups: [
+      {
+        title: "Entrada",
+        items: [
+          { to: "/logistica/entrada", label: "Entrada" },
+          { to: "/logistica/conferencia", label: "Conferência" },
+        ],
+      },
+      {
+        title: "Saída",
+        items: [
+          { to: "/logistica/separacao", label: "Separação" },
+          { to: "/logistica/pesagem-pedidos", label: "Pesagem de pedidos" },
+          { to: "/logistica/rotas", label: "Rotas" },
+          { to: "/logistica/entrega", label: "Entrega" },
+        ],
+      },
     ],
   },
   {

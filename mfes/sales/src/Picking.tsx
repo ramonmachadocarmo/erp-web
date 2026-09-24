@@ -1,6 +1,6 @@
 import { Fragment, useState } from "react";
 import { Autocomplete, CompanyHeaderInfo, DataTable, DataTableColumn, Modal, StatusBadge, decodeWeightBarcode, isMaster, salesApi } from "@erp/shared";
-import { itemSummary, personName, printLabels, sepNo } from "./helpers";
+import { Component, itemSummary, kitComponents, personName, printLabels, sepNo } from "./helpers";
 
 type Props = {
   orders: any[];
@@ -18,20 +18,6 @@ type Props = {
 
 function pickedQty(order: any, productId: string) {
   return (order?.picks || []).filter((p: any) => p.product_id === productId).reduce((n: number, p: any) => n + Number(p.quantity), 0);
-}
-
-type Component = { product_id: string; quantity: number };
-
-// Mirrors sales-service's domain.PickRequirements: a kit line is separated by its components
-// (customer substitutions on the line win over the Montagem recipe), not by the kit product itself.
-function kitComponents(item: any, assemblies: any[]): Component[] | null {
-  const kit = (assemblies || []).find((a) => a.product_id && a.product_id === item.product_id);
-  if (!kit) return null;
-  const own = (item.components || []).filter((c: any) => c.product_id && Number(c.quantity) > 0);
-  const comps: Component[] = own.length > 0
-    ? own.map((c: any) => ({ product_id: c.product_id, quantity: Number(c.quantity) }))
-    : (kit.items || []).map((ai: any) => ({ product_id: ai.product_id, quantity: Number(ai.quantity) * Number(item.quantity) }));
-  return comps.length > 0 ? comps : null;
 }
 
 // Orders separated before kits were picked by component have the kit product itself picked in

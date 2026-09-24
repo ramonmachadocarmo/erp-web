@@ -4,7 +4,7 @@ import { CompanyHeaderInfo, Loading, companyHeaderInfo, configApi, salesApi, sto
 import { RouteReport } from "./RouteReport";
 import { RoutesPlanner } from "./RoutesPlanner";
 import { Weighing } from "./Weighing";
-import { KitWeighing } from "./KitWeighing";
+import { OrderWeighing } from "./OrderWeighing";
 import { Orders } from "./Orders";
 import { Picking } from "./Picking";
 import { Delivery } from "./Delivery";
@@ -77,7 +77,7 @@ export default function App() {
 
   return (
     <div>
-      <h1>{page === "entrega" ? "Entrega" : page === "separacao" ? "Separação" : page === "pesagem" ? "Pesagem" : page === "pesagem-kits" ? "Pesagem de kits" : page === "rotas" ? "Rotas" : page === "relatorio" ? "Relatório de rota" : isPdv ? "PDV — Pedidos" : "Pedidos de venda"}</h1>
+      <h1>{page === "entrega" ? "Entrega" : page === "separacao" ? "Separação" : page === "pesagem" ? "Pesagem" : page === "pesagem-pedidos" ? "Pesagem de pedidos" : page === "rotas" ? "Rotas" : page === "relatorio" ? "Relatório de rota" : isPdv ? "PDV — Pedidos" : "Pedidos de venda"}</h1>
       {error && <p className="error">{error}</p>}
       {page === "relatorio" && planId ? (
         <RouteReport planId={planId} customers={customers} company={company} />
@@ -101,8 +101,8 @@ export default function App() {
         />
       ) : page === "pesagem" ? (
         <Weighing products={products} company={company} />
-      ) : page === "pesagem-kits" ? (
-        <KitWeighing products={products} assemblies={assemblies} company={company} />
+      ) : page === "pesagem-pedidos" ? (
+        <OrderWeighing orders={orders} products={products} assemblies={assemblies} customers={customers} company={company} />
       ) : page === "entrega" ? (
         <Delivery orders={orders} products={products} customers={customers} onReload={load} onError={setError} company={company} />
       ) : (
