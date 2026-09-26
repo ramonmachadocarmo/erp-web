@@ -1,0 +1,82 @@
+name: Web
+
+on:
+  push:
+  pull_request:
+
+# apps/web depende de @erp/schema via um link "file:" (../../schema/generated/ts, mesma
+# profundidade do monorepo local) — por isso o job baixa erp-schema como diretorio irmao antes do
+# npm ci.
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: apps/web
+      - uses: actions/checkout@v4
+        with:
+          repository: ramonmachadocarmo/erp-schema
+          path: schema
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - name: npm ci
+        working-directory: apps/web
+        run: npm ci --no-audit --no-fund
+      - name: npm test
+        working-directory: apps/web
+        run: npm test --workspaces --if-present
+
+  # So roda no push de uma tag vX.Y.Z (scripts/service-release.sh + service-publish.sh SERVICE=web).
+  # Builda a imagem com apps/web/Dockerfile (copia local de docker/web/Dockerfile — ver
+  # 'make sync-dockerfiles' na raiz do monorepo; o build ja roda `npm test` de novo como gate,
+  # dentro do proprio multi-stage), publica no ECR com a versao da tag e dispara o rollout no VPS
+  # via SSH, reaproveitando o scripts/vps-release.sh que ja roda la (nao gerencia k8s/ daqui).
+  deploy:
+    environment: production
+    needs: test
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: apps/web
+      - uses: actions/checkout@v4
+        with:
+          repository: ramonmachadocarmo/erp-schema
+          path: schema
+      - name: Version from tag
+        id: ver
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+      - uses: aws-actions/amazon-ecr-login@v2
+        id: ecr
+      - name: Build and push image
+        run: |
+          IMAGE="${{ steps.ecr.outputs.registry }}/erp/web:${{ steps.ver.outputs.version }}"
+          docker build --platform linux/amd64 -f apps/web/Dockerfile -t "$IMAGE" .
+          docker push "$IMAGE"
+      - name: Rollout on VPS
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: web=${{ steps.ver.outputs.version }} -y
+      - name: Notify Telegram
+        if: always()
+        uses: appleboy/telegram-action@v1.0.0
+        with:
+          to: ${{ secrets.TELEGRAM_CHAT_ID }}
+          token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          format: markdown
+          message: |
+            ${{ job.status == 'success' && '✅' || '❌' }} *web* `${{ steps.ver.outputs.version }}` — deploy ${{ job.status }}
+            ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
