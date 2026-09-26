@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Autocomplete, CompanyHeaderInfo, encodeWeightBarcode, printWeightLabelPdf } from "@erp/shared";
 import { formatDateTime } from "./helpers";
 
-type Product = { id: string; sku: string; name: string; sale_uom?: string; sale_price?: number; kind?: string };
+type Product = { id: string; sku: string; name: string; popular_name?: string; sale_uom?: string; sale_price?: number; kind?: string };
 
 // Minimal Web Serial typings (not part of TS's DOM lib) — only the surface used below.
 interface SerialPortLike {
@@ -200,7 +200,7 @@ export function Weighing({ products, company }: { products: Product[]; company?:
     const barcode = encodeWeightBarcode(product.sku, weight);
     const printedAt = formatDateTime(new Date());
     printWeightLabelPdf(
-      [{ sku: product.sku, name: product.name, weightKg: weight, unitPrice, barcode, printedAt }],
+      [{ sku: product.sku, name: product.popular_name || product.name, weightKg: weight, unitPrice, barcode, printedAt }],
       company,
       { withPrice },
     );
@@ -256,7 +256,7 @@ export function Weighing({ products, company }: { products: Product[]; company?:
             ref={productRef}
             required
             value={productId}
-            options={weighable.map((p) => ({ value: p.id, code: p.sku, description: p.name }))}
+            options={weighable.map((p) => ({ value: p.id, code: p.sku, description: p.popular_name || p.name }))}
             onChange={setProductId}
           />
         </div>

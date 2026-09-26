@@ -129,8 +129,9 @@ export function OrderWeighing({ orders, products, assemblies, customers, company
     const p = currentRow?.product;
     if (!p || !currentRow || !validWeight) return;
     const unitPrice = Number(p.sale_price || 0);
+    const displayName = p.popular_name || p.name;
     printWeightLabelPdf(
-      [{ sku: p.sku, name: p.name, weightKg: weight, unitPrice, barcode: encodeWeightBarcode(p.sku, weight), printedAt: formatDateTime(new Date()) }],
+      [{ sku: p.sku, name: displayName, weightKg: weight, unitPrice, barcode: encodeWeightBarcode(p.sku, weight), printedAt: formatDateTime(new Date()) }],
       company,
       { withPrice },
     );
@@ -141,7 +142,7 @@ export function OrderWeighing({ orders, products, assemblies, customers, company
         key: currentRow.key,
         productId: p.id,
         sku: p.sku,
-        name: p.name,
+        name: displayName,
         weightKg: weight,
         printedAt: formatDateTime(new Date()),
         ok: false,
@@ -245,7 +246,7 @@ export function OrderWeighing({ orders, products, assemblies, customers, company
                 return (
                   <tr key={r.key} style={r.key === current ? { background: "var(--panel-2)" } : undefined}>
                     <td>
-                      {p ? `${p.sku} — ${p.name}` : r.productId}
+                      {p ? `${p.sku} — ${p.popular_name || p.name}` : r.productId}
                       {r.kitName && <span className="muted"> (kit: {r.kitName})</span>}
                     </td>
                     <td>{r.qty} {p?.sale_uom || ""}</td>
@@ -288,7 +289,7 @@ export function OrderWeighing({ orders, products, assemblies, customers, company
             <>
               <div className="row" style={{ marginTop: 12 }}>
                 <div className="field field-narrow">
-                  <label>Peso (kg) — {currentRow.product.name}</label>
+                  <label>Peso (kg) — {currentRow.product.popular_name || currentRow.product.name}</label>
                   <input
                     ref={weightRef}
                     type="number"

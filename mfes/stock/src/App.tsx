@@ -353,6 +353,7 @@ export default function App() {
         name: recalcAssembly.name,
         product_id: recalcAssembly.product_id || "",
         margin_percent: recalcAssembly.margin_percent,
+        active: recalcAssembly.active,
         items: finalItems.map((it: any) => ({
           product_id: it.product_id, quantity: it.quantity, role: it.role, unit_price: it.unit_price ?? 0,
         })),
@@ -647,6 +648,7 @@ export default function App() {
   const productColumns: DataTableColumn<any>[] = [
     { key: "sku", label: "SKU" },
     { key: "name", label: "Nome" },
+    { key: "popular_name", label: "Nome popular", value: (p) => p.popular_name || "—" },
     { key: "category", label: "Categoria", value: (p) => categoryPath(p.category_id, categories) || "—" },
     { key: "kind", label: "Tipo", value: (p) => kindLabel(p.kind) },
     { key: "purchase_uom", label: "Compra" },

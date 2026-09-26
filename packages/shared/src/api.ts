@@ -442,6 +442,13 @@ export const reportsApi = {
     const qs = q.toString();
     return request<any[]>("/api/reports", `/customer-ranking${qs ? `?${qs}` : ""}`);
   },
+  customerDetail: (id: string, from?: string, to?: string) => {
+    const q = new URLSearchParams();
+    if (from) q.set("from", from);
+    if (to) q.set("to", to);
+    const qs = q.toString();
+    return request<any>("/api/reports", `/customer-ranking/${id}${qs ? `?${qs}` : ""}`);
+  },
   productSales: (from?: string, to?: string) => {
     const q = new URLSearchParams();
     if (from) q.set("from", from);

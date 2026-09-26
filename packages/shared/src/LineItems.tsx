@@ -8,7 +8,7 @@ export type LineItemComponent = { product_id: string; quantity: number };
 // in the sales MFE) — the kit's own price and quantity here never change because of it.
 export type LineItem = { product_id: string; quantity: number; unit_price: number; components?: LineItemComponent[] };
 
-type Product = { id: string; sku: string; name: string; sale_price?: number; purchase_price?: number; purchase_uom?: string; sale_uom?: string };
+type Product = { id: string; sku: string; name: string; popular_name?: string; sale_price?: number; purchase_price?: number; purchase_uom?: string; sale_uom?: string };
 
 type StockInfo = { stock: number; needed: number };
 
@@ -23,9 +23,15 @@ type Props = {
   // "not enough stock" is the reason to buy, not an error, when priceKey is purchase_price).
   // Values are expected already converted to the line's own UoM (purchase_uom here).
   stockInfoByProduct?: Record<string, StockInfo>;
+  // Sales wants the product's popular_name (what goes on labels/receipts) when set, falling
+  // back to name; purchasing (orçamentos/pedidos) always wants the registered name, since that's
+  // what's exchanged with suppliers — so this defaults to off.
+  usePopularName?: boolean;
 };
 
-export function LineItems({ products, priceKey, items, onChange, onCreateProduct, availableByProduct, stockInfoByProduct }: Props) {
+export function LineItems({
+  products, priceKey, items, onChange, onCreateProduct, availableByProduct, stockInfoByProduct, usePopularName,
+}: Props) {
   const [productId, setProductId] = useState("");
   const [qty, setQty] = useState("1");
   const [price, setPrice] = useState("");
@@ -53,9 +59,13 @@ export function LineItems({ products, priceKey, items, onChange, onCreateProduct
     add();
   }
 
+  function displayName(p: Product) {
+    return (usePopularName && p.popular_name) || p.name;
+  }
+
   function productLabel(id: string) {
     const p = products.find((x) => x.id === id);
-    return p ? `${p.sku} — ${p.name}` : id;
+    return p ? `${p.sku} — ${displayName(p)}` : id;
   }
 
   function uomOf(id: string) {
@@ -94,7 +104,7 @@ export function LineItems({ products, priceKey, items, onChange, onCreateProduct
           <label>Produto</label>
           <Autocomplete
             value={productId}
-            options={products.map((p) => ({ value: p.id, code: p.sku, description: p.name }))}
+            options={products.map((p) => ({ value: p.id, code: p.sku, description: displayName(p) }))}
             createLabel="Cadastrar produto"
             onCreate={onCreateProduct}
             onChange={(id) => {

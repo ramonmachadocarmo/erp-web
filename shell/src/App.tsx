@@ -186,6 +186,8 @@ export default function App() {
         <Route path="/relatorios/perdas" element={<Screen El={ReportsApp} />} />
         <Route path="/relatorios/financeiro" element={<Screen El={ReportsApp} />} />
         <Route path="/relatorios/fluxo" element={<Screen El={ReportsApp} />} />
+        <Route path="/crm" element={<Screen El={ReportsApp} />} />
+        <Route path="/crm/:id" element={<Screen El={ReportsApp} />} />
         <Route path="/cadastros/unidades" element={<Navigate to="/config/cadastros/unidades" replace />} />
         <Route path="/cadastros/clientes" element={<Navigate to="/config/cadastros/clientes" replace />} />
         <Route path="/cadastros/fornecedores" element={<Navigate to="/config/cadastros/fornecedores" replace />} />

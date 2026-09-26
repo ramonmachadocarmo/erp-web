@@ -100,6 +100,10 @@ export const MENU: MenuGroup[] = [
     ],
   },
   {
+    title: "CRM",
+    items: [{ to: "/crm", label: "Clientes" }],
+  },
+  {
     title: "Relatórios",
     items: [
       { to: "/relatorios/kits", label: "Kits" },

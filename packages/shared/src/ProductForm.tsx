@@ -37,6 +37,7 @@ export function ProductForm({ units, categories, editing, onSaved, onCancel, onC
       sku: String(f.get("sku") || ""),
       barcode: String(f.get("barcode") || ""),
       name: String(f.get("name") || ""),
+      popular_name: String(f.get("popular_name") || ""),
       category_id: categoryId,
       ncm: String(f.get("ncm") || ""),
       kind,
@@ -70,6 +71,10 @@ export function ProductForm({ units, categories, editing, onSaved, onCancel, onC
           <div className="field"><label>SKU</label><input name="sku" placeholder="Automático" defaultValue={editing?.sku ?? ""} disabled={!!editing} /></div>
           <div className="field"><label>Barras</label><input name="barcode" defaultValue={editing?.barcode ?? ""} /></div>
           <div className="field"><label>Nome</label><input name="name" required defaultValue={editing?.name ?? ""} /></div>
+          <div className="field">
+            <label>Nome popular</label>
+            <input name="popular_name" placeholder="Se vazio, usa o Nome" defaultValue={editing?.popular_name ?? ""} />
+          </div>
           <div className="field"><label>NCM</label><input name="ncm" defaultValue={editing?.ncm ?? ""} /></div>
           <div className="field">
             <label>Categoria</label>

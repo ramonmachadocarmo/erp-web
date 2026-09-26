@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   Autocomplete,
   CompanyHeaderInfo,
@@ -12,6 +12,7 @@ import {
   stockApi,
 } from "@erp/shared";
 import { Column, KitPdfRow, exportCsv, exportKitsPdf, exportPdf, exportXlsx } from "./export";
+import { CrmCustomerDetail } from "./CrmCustomerDetail";
 
 const titles: Record<string, string> = {
   kits: "Kits",
@@ -24,6 +25,7 @@ const titles: Record<string, string> = {
   clientes: "Ranking de clientes",
   fluxo: "Fluxo de caixa: realizado × projetado",
   "vendas-produto": "Vendas por produto",
+  crm: "CRM — Clientes",
 };
 
 function fmtQty(n: number) {
@@ -69,6 +71,18 @@ function dayEnd(d: string) {
   return d ? `${d}T23:59:59.999Z` : undefined;
 }
 
+function daysAgo(s?: string | null) {
+  if (!s) return null;
+  return Math.max(0, Math.floor((Date.now() - new Date(s).getTime()) / (24 * 60 * 60 * 1000)));
+}
+
+function lastOrderLabel(s?: string | null) {
+  const d = daysAgo(s);
+  if (d == null) return "—";
+  const rel = d === 0 ? "hoje" : `há ${d} dia${d === 1 ? "" : "s"}`;
+  return `${new Date(s as string).toLocaleDateString("pt-BR")} (${rel})`;
+}
+
 const COLUMNS: Record<string, Column[]> = {
   kits: [
     { key: "code", label: "Código" },
@@ -85,6 +99,8 @@ const COLUMNS: Record<string, Column[]> = {
     { key: "uom", label: "Unidade" },
     { key: "quantity_available", label: "Disponível" },
     { key: "quantity_reserved", label: "Reservado" },
+    { key: "purchase_value", label: "Valor compra" },
+    { key: "sale_value", label: "Valor venda" },
   ],
   vendas: [
     { key: "createdAtText", label: "Data" },
@@ -98,6 +114,15 @@ const COLUMNS: Record<string, Column[]> = {
     { key: "order_count", label: "Pedidos" },
     { key: "total_amount", label: "Total comprado" },
     { key: "average_ticket", label: "Ticket médio" },
+  ],
+  crm: [
+    { key: "customer_name", label: "Cliente" },
+    { key: "order_count", label: "Pedidos" },
+    { key: "total_amount", label: "Valor gasto" },
+    { key: "average_ticket", label: "Ticket médio" },
+    { key: "cancelled_count", label: "Pedidos cancelados" },
+    { key: "lastOrderText", label: "Última compra" },
+    { key: "overdue_amount", label: "Em atraso" },
   ],
   "vendas-produto": [
     { key: "sku", label: "SKU" },
@@ -130,6 +155,8 @@ const COLUMNS: Record<string, Column[]> = {
     { key: "warehouse_name", label: "Almoxarifado" },
     { key: "uom", label: "Unidade" },
     { key: "quantity", label: "Quantidade" },
+    { key: "purchase_value", label: "Valor compra" },
+    { key: "sale_value", label: "Valor venda" },
   ],
   financeiro: [
     { key: "dueDateText", label: "Vencimento" },
@@ -157,8 +184,9 @@ const COLUMNS: Record<string, Column[]> = {
 const CURRENCY_KEYS = new Set([
   "cost", "suggested_price", "total_amount", "amount", "average_ticket",
   "realized_inflow", "realized_outflow", "realized_net", "projected_inflow", "projected_outflow", "projected_net", "balance",
+  "purchase_value", "sale_value", "overdue_amount",
 ]);
-const QTY_KEYS = new Set(["quantity_available", "quantity_reserved", "forecast_qty", "on_hand_qty", "open_po_qty", "needed_qty", "quantity", "order_count"]);
+const QTY_KEYS = new Set(["quantity_available", "quantity_reserved", "forecast_qty", "on_hand_qty", "open_po_qty", "needed_qty", "quantity", "order_count", "cancelled_count"]);
 
 // Flat export shape for kits: one row per (kit, item) pair, kit-level totals
 // repeated on every row of that kit so a spreadsheet can filter/pivot either way.
@@ -207,7 +235,10 @@ const kitItemColumns: DataTableColumn<any>[] = [
 ];
 
 export default function App() {
-  const page = useLocation().pathname.split("/").filter(Boolean).pop() || "kits";
+  const navigate = useNavigate();
+  const segments = useLocation().pathname.split("/").filter(Boolean);
+  const crmDetailId = segments[0] === "crm" && segments.length > 1 ? segments[1] : "";
+  const page = crmDetailId ? "crm" : segments[segments.length - 1] || "kits";
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -241,6 +272,7 @@ export default function App() {
   const columns = COLUMNS[page] || COLUMNS.kits;
 
   async function load() {
+    if (crmDetailId) return;
     setLoading(true);
     setError("");
     try {
@@ -250,6 +282,7 @@ export default function App() {
       else if (page === "vendas") data = await reportsApi.sales(dayStart(from), dayEnd(to));
       else if (page === "compras") data = await reportsApi.purchases(dayStart(from), dayEnd(to));
       else if (page === "clientes") data = await reportsApi.customerRanking(dayStart(from), dayEnd(to));
+      else if (page === "crm") data = await reportsApi.customerRanking(dayStart(from), dayEnd(to));
       else if (page === "vendas-produto") data = await reportsApi.productSales(dayStart(from), dayEnd(to));
       else if (page === "previsao")
         data = await reportsApi.forecast({ coverage_weeks: coverageWeeks, safety_percent: safetyPercent, lookback_weeks: lookbackWeeks });
@@ -306,6 +339,7 @@ export default function App() {
         installmentText: page === "financeiro" ? `${r.installment_no}/${r.installments_total}` : undefined,
         originText: page === "financeiro" ? originLabel(r.reference_type) : undefined,
         dateText: page === "fluxo" && r.date ? fmtDateOnly(r.date) : undefined,
+        lastOrderText: page === "crm" ? lastOrderLabel(r.last_order_at) : undefined,
         _key:
           page === "perdas"
             ? `${r.sku}-${r.warehouse_code}-${r.created_at}-${i}`
@@ -313,6 +347,8 @@ export default function App() {
             ? `${r.reference_type}-${r.due_date}-${r.installment_no}-${i}`
             : page === "fluxo"
             ? r.date
+            : page === "crm"
+            ? r.customer_id || String(i)
             : r.order_id || r.code || (r.sku && r.warehouse_code ? `${r.sku}-${r.warehouse_code}` : r.sku) || String(i),
       })),
     [rows, page]
@@ -387,11 +423,32 @@ export default function App() {
     return `${(titles[page] || "relatorio").toLowerCase().replace(/\s+/g, "-")}-${new Date().toISOString().slice(0, 10)}.${ext}`;
   }
 
+  const crmTotals = useMemo(() => {
+    if (page !== "crm") return null;
+    return rows.reduce(
+      (acc, r) => ({
+        customers: acc.customers + 1,
+        orders: acc.orders + (r.order_count || 0),
+        spent: acc.spent + (r.total_amount || 0),
+        cancelled: acc.cancelled + (r.cancelled_count || 0),
+        overdue: acc.overdue + (r.overdue_amount || 0),
+      }),
+      { customers: 0, orders: 0, spent: 0, cancelled: 0, overdue: 0 }
+    );
+  }, [rows, page]);
+
   const dataColumns: DataTableColumn<any>[] = columns.map((c) => ({
     key: c.key,
     label: c.label,
     render: (row: any) => {
       const v = row[c.key];
+      if (page === "crm" && c.key === "customer_name") {
+        return (
+          <button type="button" className="secondary" onClick={() => navigate(`/crm/${row.customer_id}`)}>
+            {v || "—"}
+          </button>
+        );
+      }
       if (v == null) return "—";
       if (c.key === "margin_percent") return `${fmtQty(v)}%`;
       if (CURRENCY_KEYS.has(c.key)) return brl(v);
@@ -400,12 +457,14 @@ export default function App() {
     },
   }));
 
+  if (crmDetailId) return <CrmCustomerDetail customerId={crmDetailId} />;
+
   return (
     <div>
       <h1>{titles[page] || "Relatórios"}</h1>
       {error && <p className="error">{error}</p>}
       <div className="card">
-        {(page === "vendas" || page === "compras" || page === "perdas" || page === "financeiro" || page === "clientes" || page === "fluxo" || page === "vendas-produto") && (
+        {(page === "vendas" || page === "compras" || page === "perdas" || page === "financeiro" || page === "clientes" || page === "crm" || page === "fluxo" || page === "vendas-produto") && (
           <div className="row">
             <div className="field">
               <label>{page === "financeiro" || page === "fluxo" ? "Vencimento de" : "De"}</label>
@@ -522,6 +581,30 @@ export default function App() {
           )}
         </div>
       </div>
+      {!loading && page === "crm" && crmTotals && (
+        <div className="row" style={{ marginTop: 16, gap: 12 }}>
+          <div className="card" style={{ flex: 1 }}>
+            <p className="muted">Clientes</p>
+            <h2>{crmTotals.customers}</h2>
+          </div>
+          <div className="card" style={{ flex: 1 }}>
+            <p className="muted">Pedidos</p>
+            <h2>{fmtQty(crmTotals.orders)}</h2>
+          </div>
+          <div className="card" style={{ flex: 1 }}>
+            <p className="muted">Valor gasto</p>
+            <h2>{brl(crmTotals.spent)}</h2>
+          </div>
+          <div className="card" style={{ flex: 1 }}>
+            <p className="muted">Pedidos cancelados</p>
+            <h2>{fmtQty(crmTotals.cancelled)}</h2>
+          </div>
+          <div className="card" style={{ flex: 1 }}>
+            <p className="muted">Em atraso</p>
+            <h2>{brl(crmTotals.overdue)}</h2>
+          </div>
+        </div>
+      )}
       {loading ? (
         <Loading />
       ) : page === "kits" ? (
@@ -549,7 +632,23 @@ export default function App() {
         </>
       ) : (
         <div className="card" style={{ marginTop: 16 }}>
-          <DataTable columns={dataColumns} rows={rawRows} rowKey={(row) => row._key} emptyMessage="Nenhum dado encontrado." />
+          <DataTable
+            columns={dataColumns}
+            rows={rawRows}
+            rowKey={(row) => row._key}
+            emptyMessage="Nenhum dado encontrado."
+            footer={
+              page === "estoque" || page === "perdas"
+                ? (rows) => (
+                    <strong>
+                      Total — Valor compra: {brl(rows.reduce((sum, r: any) => sum + Number(r.purchase_value || 0), 0))}
+                      {" · "}
+                      Valor venda: {brl(rows.reduce((sum, r: any) => sum + Number(r.sale_value || 0), 0))}
+                    </strong>
+                  )
+                : undefined
+            }
+          />
         </div>
       )}
     </div>

@@ -146,6 +146,7 @@ export function Orders({ customers, products, assemblies, methods, terms, orders
   );
 
   const orderColumns: DataTableColumn<any>[] = [
+    { key: "number", label: "Nº" },
     { key: "customer", label: "Cliente", value: (o) => personName(customers, o.customer_id) },
     {
       key: "payment",
@@ -187,9 +188,11 @@ export function Orders({ customers, products, assemblies, methods, terms, orders
           {o.status === "APPROVED" && (
             <button type="button" className="secondary" onClick={() => startEdit(o)}>Editar</button>
           )}
-          <button type="button" className="secondary" onClick={() => togglePaymentStatus(o)}>
-            {o.payment_status === "PAID" ? "Marcar pendente" : "Marcar pago"}
-          </button>
+          {o.status !== "CANCELLED" && (
+            <button type="button" className="secondary" onClick={() => togglePaymentStatus(o)}>
+              {o.payment_status === "PAID" ? "Marcar pendente" : "Marcar pago"}
+            </button>
+          )}
           {(o.status === "APPROVED" || o.status === "PENDING_RESERVATION") && (
             <button type="button" className="danger" onClick={async () => {
               if (!confirm("Cancelar este pedido?")) return;
@@ -297,6 +300,7 @@ export function Orders({ customers, products, assemblies, methods, terms, orders
             <LineItems
               products={orderableProducts}
               priceKey="sale_price"
+              usePopularName
               items={items}
               onChange={setItems}
               onCreateProduct={() => setProductModal(true)}

@@ -2,7 +2,11 @@ import { useState } from "react";
 import { Autocomplete, LineItem, LineItemComponent } from "@erp/shared";
 import { MAX_PREMIUM, equivalentQuantity, qtyStep, withinPremium } from "./kitSwap";
 
-type Product = { id: string; sku: string; name: string; sale_price?: number; sale_uom?: string };
+type Product = { id: string; sku: string; name: string; popular_name?: string; sale_price?: number; sale_uom?: string };
+
+function displayName(p: Product) {
+  return p.popular_name || p.name;
+}
 type AssemblyItem = { product_id: string; quantity: number; role?: string };
 type Assembly = { id: string; code: string; name: string; product_id: string; items: AssemblyItem[] };
 
@@ -78,7 +82,7 @@ export function KitSubstitutions({ items, onChange, assemblies, products }: Prop
     const np = productOf(products, newProductId);
     const eq = equivalentQuantity(target, salePriceOf(products, newProductId), qtyStep(np?.sale_uom));
     if (!eq.ok) {
-      setSwapError(`${np ? `${np.sku} — ${np.name}` : "Item"}: ${eq.reason}`);
+      setSwapError(`${np ? `${np.sku} — ${displayName(np)}` : "Item"}: ${eq.reason}`);
       return;
     }
     setSwapError("");
@@ -146,7 +150,7 @@ export function KitSubstitutions({ items, onChange, assemblies, products }: Prop
                         <td style={{ minWidth: 240 }}>
                           <Autocomplete
                             value={c.product_id}
-                            options={products.map((pp) => ({ value: pp.id, code: pp.sku, description: pp.name }))}
+                            options={products.map((pp) => ({ value: pp.id, code: pp.sku, description: displayName(pp) }))}
                             onChange={(newId) => swapProduct(index, ci, newId)}
                           />
                         </td>
