@@ -56,14 +56,20 @@ export function PersonForm({ editing, onCancel, onSave, submitLabel }: Props) {
     setBusy("cep");
     try {
       const a = await configApi.lookupCep(draft.zip);
-      patch({
+      const merged = {
         zip: a.zip || draft.zip,
         street: a.street || draft.street,
         complement: a.complement || draft.complement,
         district: a.district || draft.district,
         city: a.city || draft.city,
         state: a.state || draft.state,
-      });
+      };
+      patch(merged);
+      // Eagerly geocode so coordinates are stored with the address (avoids lazy-miss at route time).
+      try {
+        const geo = await configApi.geocodeAddress({ zip: merged.zip, street: merged.street, number: draft.number, district: merged.district, city: merged.city, state: merged.state });
+        if (geo?.lat && geo?.lng) patch({ lat: geo.lat, lng: geo.lng });
+      } catch { /* geocode failure is non-fatal */ }
     } catch (e) {
       setError((e as Error).message);
     } finally {

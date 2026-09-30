@@ -178,6 +178,8 @@ export const configApi = {
     request<any[]>("/api/config", `/cep?${new URLSearchParams({ state: p.state, city: p.city, street: p.street, district: p.district ?? "" })}`),
   lookupGeo: (lat: number, lng: number) => request<any>("/api/config", `/geo?lat=${lat}&lng=${lng}`),
   searchGeo: (q: string) => request<any>("/api/config", `/geo?q=${encodeURIComponent(q)}`),
+  geocodeAddress: (p: { street?: string; number?: string; district?: string; city?: string; state?: string; zip?: string }) =>
+    request<any>("/api/config", `/geo?${new URLSearchParams(Object.fromEntries(Object.entries(p).filter(([, v]) => v)))}`),
   centers: () => request<any[]>("/api/config", "/centers"),
   createCenter: (body: unknown) => request<any>("/api/config", "/centers", { method: "POST", body: JSON.stringify(body) }),
   updateCenter: (id: string, body: unknown) => request<any>("/api/config", `/centers/${id}`, { method: "PUT", body: JSON.stringify(body) }),
